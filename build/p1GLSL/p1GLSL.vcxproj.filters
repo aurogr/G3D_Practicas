@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\Usuario\Desktop\MASTER\Graficos 3D\Practicas\G3D_Practicas\p1GLSL\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Usuario\Desktop\MASTER\Graficos 3D\Practicas\G3D_Practicas\p1GLSL\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{C309663C-3426-3AE9-8C3B-0EE88DCBD474}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

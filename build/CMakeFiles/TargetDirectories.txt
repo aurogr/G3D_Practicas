@@ -1,0 +1,12 @@
+C:/Users/Usuario/Desktop/MASTER/Graficos 3D/Practicas/G3D_Practicas/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/Usuario/Desktop/MASTER/Graficos 3D/Practicas/G3D_Practicas/build/CMakeFiles/ZERO_CHECK.dir
+C:/Users/Usuario/Desktop/MASTER/Graficos 3D/Practicas/G3D_Practicas/build/IGL/CMakeFiles/IGL.dir
+C:/Users/Usuario/Desktop/MASTER/Graficos 3D/Practicas/G3D_Practicas/build/IGL/CMakeFiles/ALL_BUILD.dir
+C:/Users/Usuario/Desktop/MASTER/Graficos 3D/Practicas/G3D_Practicas/build/p1GLSL/CMakeFiles/p1GLSL.dir
+C:/Users/Usuario/Desktop/MASTER/Graficos 3D/Practicas/G3D_Practicas/build/p1GLSL/CMakeFiles/ALL_BUILD.dir
+C:/Users/Usuario/Desktop/MASTER/Graficos 3D/Practicas/G3D_Practicas/build/p2GLSL/CMakeFiles/p2GLSL.dir
+C:/Users/Usuario/Desktop/MASTER/Graficos 3D/Practicas/G3D_Practicas/build/p2GLSL/CMakeFiles/ALL_BUILD.dir
+C:/Users/Usuario/Desktop/MASTER/Graficos 3D/Practicas/G3D_Practicas/build/p3OGL/CMakeFiles/p3OGL.dir
+C:/Users/Usuario/Desktop/MASTER/Graficos 3D/Practicas/G3D_Practicas/build/p3OGL/CMakeFiles/ALL_BUILD.dir
+C:/Users/Usuario/Desktop/MASTER/Graficos 3D/Practicas/G3D_Practicas/build/p4OGL/CMakeFiles/p4OGL.dir
+C:/Users/Usuario/Desktop/MASTER/Graficos 3D/Practicas/G3D_Practicas/build/p4OGL/CMakeFiles/ALL_BUILD.dir

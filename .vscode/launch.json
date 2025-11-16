@@ -1,0 +1,65 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "p1GLSL",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/p1GLSL/Debug/p1GLSL.exe",
+      "cwd": "${workspaceFolder}/build/p1GLSL/Debug",
+      "environment": [
+        {
+          "name": "PATH",
+          "value": "${env:PATH};C:\\Users\\mario\\vcpkg\\installed\\x64-windows\\bin"
+        }
+      ],
+      "console": "integratedTerminal",
+      "stopAtEntry": true
+    },
+    {
+      "name": "p2GLSL",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/p2GLSL/Debug/p2GLSL.exe",
+      "cwd": "${workspaceFolder}/build/p2GLSL/Debug",
+      "environment": [
+        {
+          "name": "PATH",
+          "value": "${env:PATH};C:\\Users\\mario\\vcpkg\\installed\\x64-windows\\bin"
+        }
+      ],
+      "console": "integratedTerminal",
+      "stopAtEntry": true
+    },
+    {
+      "name": "p3OGL",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/p3OGL/Debug/p3OGL.exe",
+      "cwd": "${workspaceFolder}/build/p3OGL/Debug",
+      "environment": [
+        {
+          "name": "PATH",
+          "value": "${env:PATH};C:\\Users\\mario\\vcpkg\\installed\\x64-windows\\bin"
+        }
+      ],
+      "console": "integratedTerminal",
+      "stopAtEntry": true
+    },
+    {
+      "name": "p4OGL",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/p4OGL/Debug/p4OGL.exe",
+      "cwd": "${workspaceFolder}/build/p4OGL/Debug",
+      "environment": [
+        {
+          "name": "PATH",
+          "value": "${env:PATH};C:\\Users\\mario\\vcpkg\\installed\\x64-windows\\bin"
+        }
+      ],
+      "console": "integratedTerminal",
+      "stopAtEntry": true
+    }
+  ]
+}
