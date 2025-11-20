@@ -5,7 +5,7 @@
 
 const float PI = 3.141592653589793;
 const float EPSILON = 1e-5;
-const int MATERIAL_COUNT = 4;
+const int MATERIAL_COUNT = 3;
 
 in vec3 vPos;
 in vec3 vNormal;
@@ -133,16 +133,15 @@ vec3 disneyBRDF(DisneyMaterial m, vec3 N, vec3 V, vec3 L) {
 	brdfColor += diffuse * (1.0 - m.metallic); // Metals do not have a diffuse (Lambertian) component
 
     // Sheen term
-	float F_Sheen = F_SchlickScalar(m.sheen, VdotH);
-	vec3 sheen = F_Sheen * mix(vec3(1.0), m.baseColor, m.sheenTint);
+	// se caracteriza por mayor brillo en ángulos rasantes, que puede ser del color del material
+	float F_Sheen = F_SchlickScalar(m.sheen, NdotH);
+	vec3 sheen = F_Sheen * mix(vec3(1.0), tint, m.sheenTint);
 	brdfColor += sheen;
-
+	
     // Clearcoat term
 	vec3 clearcoat = vec3(0.0);
 	if(m.clearcoat > 0.0) {
-		/*float Dc = 
-		float Gc = G_Schlick_GGX(NdotV, 0.25)
-		brdfColor += clearcoat;*/
+		brdfColor += clearcoat;
 	}
 
     // Subsurface term (approx — slight retro-reflection mix)
@@ -166,9 +165,7 @@ void main() {
 			// 1: Soft Plastic Toy (dielectric)
 		DisneyMaterial(vec3(0.95, 0.3, 0.05), 0.0, 0.0, 0.64, 0.75, 0.15, 0.0, 0.0, 0.0, 0.0),
 			// 2: Fabric velvet (dielectric)
-		DisneyMaterial(vec3(0.420, 0.020, 0.094), 0.2, 0.0, 0.0, 0.0, 0.4, 1.0, 0.2, 0.0, 0.0),
-			// 3: Fabric velvet (dielectric)
-		DisneyMaterial(vec3(0.420, 0.020, 0.094), 0.0, 0.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0, 0.0)
+		DisneyMaterial(vec3(0.420, 0.020, 0.094), 0.2, 0.0, 0.0, 0.0, 1.0, 0.9, 0.0, 0.0, 0.0)
 	);
 
 	outColor = vec4(shade(materials[selectedMaterial]), 1.0);
