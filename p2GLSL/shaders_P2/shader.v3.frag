@@ -2,7 +2,8 @@
 
 in vec3 vPos;
 in vec3 vNormal;
-in vec3 vTexCoord;
+in vec2 vTexCoord;
+uniform sampler2D colorTex;
 
 vec3 N; // it's vNormal, we maintain it just so the formula looks pretty
 float epsilon = 1e-3;
@@ -28,8 +29,8 @@ void main()
 {
 	N = normalize(vNormal); // we have to normalice again after passing from vertex shader to fragment shader
 
-	Ka = vColor;
-	Kd = vColor;
+	Ka = texture(colorTex,vTexCoord).xyz;
+	Kd = texture(colorTex,vTexCoord).xyz;
 	Ks = vec3(1.0);
 
 	outColor = vec4(shade(), 1.0);
