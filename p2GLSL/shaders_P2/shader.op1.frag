@@ -31,7 +31,9 @@ vec3 Is = vec3(1.0);
 out vec4 outColor;
 
 void main() {
-	N = TBN * (normalize(texture(normalTex, vTexCoord).rgb) * 2.0 -1.0);
+	N = texture(normalTex, vTexCoord).rgb;
+	N = normalize(N * 2.0 -1.0);
+	N = TBN * N;
 	Ka = texture(colorTex, vTexCoord).rgb;
 	Kd = texture(colorTex, vTexCoord).rgb;
 	Ks = texture(specularTex, vTexCoord).rgb;;
