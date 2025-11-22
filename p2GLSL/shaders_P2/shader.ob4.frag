@@ -28,10 +28,10 @@ struct DisneyMaterial {
 };
 
 // Per light definition
-vec3 Lpos = vec3(0.0, 0.0, 5.0);
-vec3 Ia = vec3(0.3);
+vec3 Lpos = vec3(5.0, 5.0, -5.0);
+vec3 Ia = vec3(0.1);
 vec3 lightColor = vec3(1.0);
-float lightIntensity = 1.0;
+float lightIntensity = 2.0;
 
 out vec4 outColor;
 
@@ -63,7 +63,7 @@ float G_Smith(float NdotV, float NdotL, float k) {
 // Schlick scalar for sheen
 float F_SchlickScalar(float F0, float cosTheta) {
 	float pow5 = pow(1.0 - cosTheta, 5.0);
-	return F0 * pow5;
+	return F0 + (1.0 - F0) * pow5;
 }
 
 // GTR1 used by Disney for clearcoat (normalized)
@@ -134,8 +134,9 @@ vec3 disneyBRDF(DisneyMaterial m, vec3 N, vec3 V, vec3 L) {
 
     // Sheen term
 	// se caracteriza por mayor brillo en ángulos rasantes, que puede ser del color del material
-	float F_Sheen = F_SchlickScalar(m.sheen, NdotH);
-	vec3 sheen = F_Sheen * mix(vec3(1.0), tint, m.sheenTint);
+	float F_Sheen = F_SchlickScalar(0.04, VdotH);
+	float sheenMask = (1 - m.roughness) * (1 - m.metallic);
+	vec3 sheen = F_Sheen * m.sheen * mix(vec3(1.0), m.baseColor, m.sheenTint) * sheenMask;
 	brdfColor += sheen;
 	
     // Clearcoat term
@@ -165,7 +166,7 @@ void main() {
 			// 1: Soft Plastic Toy (dielectric)
 		DisneyMaterial(vec3(0.95, 0.3, 0.05), 0.0, 0.0, 0.64, 0.75, 0.15, 0.0, 0.0, 0.0, 0.0),
 			// 2: Fabric velvet (dielectric)
-		DisneyMaterial(vec3(0.420, 0.020, 0.094), 0.2, 0.0, 0.0, 0.0, 1.0, 0.9, 0.0, 0.0, 0.0)
+		DisneyMaterial(vec3(0.35, 0.02, 0.20), 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.2, 0.0, 0.0)
 	);
 
 	outColor = vec4(shade(materials[selectedMaterial]), 1.0);

@@ -27,7 +27,7 @@ void setViewMatGivenLookAtAndUp();
 
 // movement related variables and fixed update
 float angle = 0.0f;
-const float angleStep = glm::radians(90.0f);
+const float angleStep = glm::radians(45.0f);
 auto  lastFrame = std::chrono::high_resolution_clock::now();
 float deltaTimeAccumulator = 0.0f;
 const float fixedDeltaTime = 1.0f / 60.0f;
@@ -47,8 +47,8 @@ int main(int argc, char **argv)
 #ifdef _WIN32
 	std::locale::global(std::locale("spanish")); // Spanish accents
 #endif
-	std::string vertexShader = std::string(SHADERS_PATH) + "/disney2012.vert";
-	std::string fragmentShader = std::string(SHADERS_PATH) + "/disney2012.frag";
+	std::string vertexShader = std::string(SHADERS_PATH) + "/shader.ob4.vert";
+	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.ob4.frag";
 	if (!IGlib::init(vertexShader.c_str(), fragmentShader.c_str()))
 		return -1;
 
@@ -56,23 +56,22 @@ int main(int argc, char **argv)
 	setViewMatGivenLookAtAndUp();
 
 	// Create the object we want to visualize
-	objId = IGlib::createObj(cubeNTriangleIndex, cubeNVertex, cubeTriangleIndex,
-							 cubeVertexPos, cubeVertexColor, cubeVertexNormal, cubeVertexTexCoord, cubeVertexTangent);
+	//objId = IGlib::createObj(cubeNTriangleIndex, cubeNVertex, cubeTriangleIndex,
+	//						 cubeVertexPos, cubeVertexColor, cubeVertexNormal, cubeVertexTexCoord, cubeVertexTangent);
 
 	
-	obj2Id = IGlib::createObj(SUZANNE_NUM_FACES, SUZANNE_NUM_VERTICES, suzanneFaces,
+	objId = IGlib::createObj(SUZANNE_NUM_FACES, SUZANNE_NUM_VERTICES, suzanneFaces,
                              suzanneVertexPos, fillSuzanneVertexColor(), suzanneVertexNormal, generateTriplanar(SUZANNE_NUM_VERTICES, 1.0f).data());
-
-	glm::mat4 modelMat = glm::mat4(1.0f);
-	IGlib::setModelMat(objId, modelMat);
 
 	// Add textures here
 	std::string albedoTexPath = std::string(TEXTURES_PATH) + "/color.png";
 	std::string emissiveTexPath = std::string(TEXTURES_PATH) + "/emissive.png";
 	std::string specMapTexPath = std::string(TEXTURES_PATH) + "/specMap.png";
+	std::string normalTexPath = std::string(TEXTURES_PATH) + "/normal.png";
 	IGlib::addColorTex(objId, albedoTexPath.c_str());
 	IGlib::addEmissiveTex(objId, emissiveTexPath.c_str());
 	IGlib::addSpecularTex(objId, specMapTexPath.c_str());
+	IGlib::addNormalTex(objId, normalTexPath.c_str());
 
 	// CBs
 	IGlib::setIdleCB(idleFunc);
@@ -127,14 +126,14 @@ void idleFunc()
 	while (deltaTimeAccumulator >= fixedDeltaTime){
 		angle += angleStep * fixedDeltaTime;
 		firstCubeMovement();
-		secondCubeMovement();
+		//secondCubeMovement();
 
 		deltaTimeAccumulator -= fixedDeltaTime;
 	}
 }
 
 void firstCubeMovement(){
-	glm::mat4 model = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(1.0f, 1.0f, 0.0f)); 
+	glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(-60.0f), glm::vec3(0.0f, 1.0f, 0.0f)); 
 	IGlib::setModelMat(objId, model);
 }
 
