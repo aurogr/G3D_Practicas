@@ -65,7 +65,7 @@ vec3 shade(){
 	float specularFactor = clamp(dot(N, H), 0.0, 1.0);
 	vec3 spec = Is * Ks * pow(specularFactor, alpha);
 
-	shading += fdist * (diffuse + spec);
+	shading += (diffuse + spec);
 
 	return shading;
 }

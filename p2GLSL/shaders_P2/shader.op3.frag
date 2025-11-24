@@ -29,7 +29,7 @@ vec3 Lpos = vec3(0.0);
 
 // Fog parameters
 vec3 fogColor = vec3(0.0);
-float fogDensity = 0.1;
+float fogDensity = 0.2;
 
 out vec4 outColor;
 
