@@ -1,0 +1,231 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						2,
+						3,
+						4,
+						5
+					],
+					"jsonFile" : "directory-.-Debug-d0094a50bb2071803777.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"projectIndex" : 0,
+					"source" : "."
+				},
+				{
+					"build" : "IGL",
+					"jsonFile" : "directory-IGL-Debug-efc85399b56f1bd7b2ef.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "IGL",
+					"targetIndexes" : 
+					[
+						0
+					]
+				},
+				{
+					"build" : "p1GLSL",
+					"jsonFile" : "directory-p1GLSL-Debug-92bb03de269f5992347d.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 2,
+					"source" : "p1GLSL",
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"build" : "p2GLSL",
+					"jsonFile" : "directory-p2GLSL-Debug-fd56505259163a946d0b.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 3,
+					"source" : "p2GLSL",
+					"targetIndexes" : 
+					[
+						2
+					]
+				},
+				{
+					"build" : "p3OGL",
+					"jsonFile" : "directory-p3OGL-Debug-d3d3e9e56e60010a976f.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 4,
+					"source" : "p3OGL",
+					"targetIndexes" : 
+					[
+						3
+					]
+				},
+				{
+					"build" : "p4OGL",
+					"jsonFile" : "directory-p4OGL-Debug-79d9bed720980449ff09.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 5,
+					"source" : "p4OGL",
+					"targetIndexes" : 
+					[
+						4
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1,
+						2,
+						3,
+						4,
+						5
+					],
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "g3d-practicas"
+				},
+				{
+					"directoryIndexes" : 
+					[
+						1
+					],
+					"name" : "IGL",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						0
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						2
+					],
+					"name" : "p1GLSL",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						3
+					],
+					"name" : "p2GLSL",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						2
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						4
+					],
+					"name" : "p3OGL",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						3
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						5
+					],
+					"name" : "p4OGL",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						4
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 1,
+					"id" : "IGL::@a0ead079bc362423e8b5",
+					"jsonFile" : "target-IGL-Debug-e080251fc4b4c628646f.json",
+					"name" : "IGL",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "p1GLSL::@ac48af95697c2c399117",
+					"jsonFile" : "target-p1GLSL-Debug-a938f91885712cd717ae.json",
+					"name" : "p1GLSL",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "p2GLSL::@b20ebc40b4a6d91e0fb9",
+					"jsonFile" : "target-p2GLSL-Debug-e71a527f37fa4cf931d1.json",
+					"name" : "p2GLSL",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 4,
+					"id" : "p3OGL::@a543eb7875b7f39fddc3",
+					"jsonFile" : "target-p3OGL-Debug-8c42b7fd8e2d8330d87f.json",
+					"name" : "p3OGL",
+					"projectIndex" : 4
+				},
+				{
+					"directoryIndex" : 5,
+					"id" : "p4OGL::@079d7c23b6237a786f07",
+					"jsonFile" : "target-p4OGL-Debug-f1f22bff0212006c3e7f.json",
+					"name" : "p4OGL",
+					"projectIndex" : 5
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "C:/Users/cholo/Documents/uni/Graficos3D/G3D_Repositorio/G3D_Practicas/out/build/x64-Debug",
+		"source" : "C:/Users/cholo/Documents/uni/Graficos3D/G3D_Repositorio/G3D_Practicas"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 4
+	}
+}
