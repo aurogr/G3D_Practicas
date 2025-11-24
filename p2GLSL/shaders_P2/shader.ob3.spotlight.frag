@@ -27,9 +27,7 @@ vec3 Id = vec3(1.0);
 vec3 Is = vec3(1.0);
 vec3 Lpos = vec3(0.0);
 vec3 D = normalize(vec3(0.0, 0.0, -0.9));	// direction (normalized)
-float thetaU = radians(15);					// cutoff angle of aperture
-float thetaP = radians(11.0);				// gloom angle
-float m = 5.0;								// aperture attenuation factor
+float theta = radians(10);					// angle of aperture
 
 // Attenuation variables 
 float d0 = 10.0;  // mult value for light intensity
@@ -59,7 +57,8 @@ vec3 shade(){
 	float fdist = (d0 / (d*d + epsilon));
 
 	// Spotlight attenuation
-	float spDist = pow(clamp((dot(-L,D) - cos(thetaU)) / (cos(thetaP)- cos(thetaU)),0.0,1.0),m);
+	float spDist = 0;
+	if(cos(theta) < dot(-L,D)) spDist = 1;
 
 	// Ambient term
 	shading += Ia * Ka; // cos(theta) doesn't matter because ambient light goes everywhere
@@ -72,7 +71,7 @@ vec3 shade(){
 	float specularFactor = clamp(dot(N, H), 0.0, 1.0);
 	vec3 spec = Is * Ks * pow(specularFactor, alpha);
 
-	shading += spDist * fdist * (diffuse + spec);
+	shading += spDist * (diffuse + spec);
 
 	return shading;
 }
