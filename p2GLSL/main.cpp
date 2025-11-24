@@ -8,12 +8,16 @@
 #include <iostream>
 #include <chrono>
 
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
 #define PI 3.141592f
 
 // Scene object IDs
 int objId = -1;
 int obj2Id = -1;
-int obj3Id = -1;
+int objAssimpId = -1;
 
 // CB declaration
 void resizeFunc(int width, int height);
@@ -24,6 +28,7 @@ void mouseMotionFunc(int x, int y);
 void firstCubeMovement();
 void secondCubeMovement();
 void setViewMatGivenLookAtAndUp();
+void assimpModelLoad();
 
 // movement related variables and fixed update
 float angle = 0.0f;
@@ -47,8 +52,8 @@ int main(int argc, char **argv)
 #ifdef _WIN32
 	std::locale::global(std::locale("spanish")); // Spanish accents
 #endif
-	std::string vertexShader = std::string(SHADERS_PATH) + "/shader.ob4.vert";
-	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.ob4.frag";
+	std::string vertexShader = std::string(SHADERS_PATH) + "/shader.op6.vert";
+	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.op6.frag";
 	if (!IGlib::init(vertexShader.c_str(), fragmentShader.c_str()))
 		return -1;
 
@@ -60,10 +65,13 @@ int main(int argc, char **argv)
 	//						 cubeVertexPos, cubeVertexColor, cubeVertexNormal, cubeVertexTexCoord, cubeVertexTangent);
 
 	
-	objId = IGlib::createObj(SUZANNE_NUM_FACES, SUZANNE_NUM_VERTICES, suzanneFaces,
-                             suzanneVertexPos, fillSuzanneVertexColor(), suzanneVertexNormal, generateTriplanar(SUZANNE_NUM_VERTICES, 1.0f).data());
-
+	
+	// Optional part 6
+	assimpModelLoad();
+	IGlib::setModelMat(objAssimpId, glm::mat4(1.0));
+	
 	// Add textures here
+	/*
 	std::string albedoTexPath = std::string(TEXTURES_PATH) + "/color.png";
 	std::string emissiveTexPath = std::string(TEXTURES_PATH) + "/emissive.png";
 	std::string specMapTexPath = std::string(TEXTURES_PATH) + "/specMap.png";
@@ -72,6 +80,7 @@ int main(int argc, char **argv)
 	IGlib::addEmissiveTex(objId, emissiveTexPath.c_str());
 	IGlib::addSpecularTex(objId, specMapTexPath.c_str());
 	IGlib::addNormalTex(objId, normalTexPath.c_str());
+	*/
 
 	// CBs
 	IGlib::setIdleCB(idleFunc);
@@ -125,7 +134,7 @@ void idleFunc()
 
 	while (deltaTimeAccumulator >= fixedDeltaTime){
 		angle += angleStep * fixedDeltaTime;
-		firstCubeMovement();
+		//firstCubeMovement();
 		//secondCubeMovement();
 
 		deltaTimeAccumulator -= fixedDeltaTime;
@@ -133,7 +142,7 @@ void idleFunc()
 }
 
 void firstCubeMovement(){
-	glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(-60.0f), glm::vec3(0.0f, 1.0f, 0.0f)); 
+	glm::mat4 model = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(0.0f, 1.0f, 0.0f)); 
 	IGlib::setModelMat(objId, model);
 }
 
@@ -201,4 +210,100 @@ void mouseFunc(int button, int state, int x, int y)
 
 void mouseMotionFunc(int x, int y)
 {
+}
+
+void assimpModelLoad(){
+	Assimp::Importer importer;
+	std::string objPath = std::string(SHADERS_PATH) + "/../suzanne.obj";
+    const aiScene* scene = importer.ReadFile(objPath, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace | aiProcess_FlipUVs);
+	
+	aiMesh* mesh = scene->mMeshes[0]; // load first mesh
+
+    // triangle index because assimp stores them in faces and we need the whole array
+	std::vector<unsigned int> assimpTriangleIndex;
+    for (unsigned int i = 0; i < mesh->mNumFaces; ++i) {
+        aiFace face = mesh->mFaces[i];
+        for (unsigned int j = 0; j < face.mNumIndices; ++j)
+            assimpTriangleIndex.push_back(face.mIndices[j]);
+    }
+
+	std::vector<glm::vec3> tangents;
+	tangents.resize(mesh->mNumVertices);
+	std::vector<glm::vec3> normals;
+	normals.resize(mesh->mNumVertices);
+
+	// Calculate normals and tangents (from texture coordinates)
+	for (unsigned int i = 0; i < mesh->mNumFaces; ++i) {
+        aiFace face = mesh->mFaces[i];
+
+		// Get triangle (face) vertices and UV coordinates
+		aiVector3D& v0 = mesh->mVertices[face.mIndices[0]];
+        aiVector3D& v1 = mesh->mVertices[face.mIndices[1]];
+        aiVector3D& v2 = mesh->mVertices[face.mIndices[2]];
+
+        aiVector3D& uv0 = mesh->mTextureCoords[0][face.mIndices[0]];
+        aiVector3D& uv1 = mesh->mTextureCoords[0][face.mIndices[1]];
+        aiVector3D& uv2 = mesh->mTextureCoords[0][face.mIndices[2]];
+
+		// Get edges and deltaUV coordinates
+        glm::vec3 edge1 = glm::vec3(v1.x - v0.x, v1.y - v0.y, v1.z - v0.z);
+        glm::vec3 edge2 = glm::vec3(v2.x - v0.x, v2.y - v0.y, v2.z - v0.z);
+
+        glm::vec2 deltaUV1 = glm::vec2(uv1.x - uv0.x, uv1.y - uv0.y);
+        glm::vec2 deltaUV2 = glm::vec2(uv2.x - uv0.x, uv2.y - uv0.y);
+
+        // Calculate tangent and bitangent
+        float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+
+        // Calculate tangent and bitangent
+        glm::vec3 tangent = f * (deltaUV2.y * edge1 - deltaUV1.y * edge2);
+
+		// Calculate normal as cross product of edges
+		glm::vec3 normal = glm::cross(edge1, edge2);
+
+		// For each vertex, we need the average of all tangents, we are gonna use the average based on the triangle area
+		//The area is half of the module of cross product of two edges (the normal)
+		float area = glm::length(normal) * 0.5f;
+		tangent *= area;
+		normal *= area;
+
+		// store
+		tangents[face.mIndices[0]] += tangent;
+		tangents[face.mIndices[1]] += tangent;
+		tangents[face.mIndices[2]] += tangent;
+		normals[face.mIndices[0]] += normal;
+		normals[face.mIndices[1]] += normal;
+		normals[face.mIndices[2]] += normal;
+    }
+
+	float* rawTangents = new float[mesh->mNumVertices * 3];
+	float* rawNormals = new float[mesh->mNumVertices * 3];
+
+	for (size_t i = 0; i < mesh->mNumVertices; ++i) {
+		tangents[i] = glm::normalize(tangents[i]);
+		normals[i] = glm::normalize(normals[i]);
+
+        rawTangents[i * 3] = tangents[i].x;
+        rawTangents[i * 3 + 1] = tangents[i].y;
+        rawTangents[i * 3 + 2] = tangents[i].z;
+		
+        rawNormals[i * 3] = normals[i].x;
+        rawNormals[i * 3 + 1] = normals[i].y;
+        rawNormals[i * 3 + 2] = normals[i].z;
+    }
+		
+
+	objAssimpId = IGlib::createObj(
+		static_cast<unsigned int>(assimpTriangleIndex.size()),
+		static_cast<unsigned int>(mesh->mNumVertices),
+		reinterpret_cast<const unsigned int*>(assimpTriangleIndex.data()),
+		reinterpret_cast<const float*>(mesh->mVertices),
+		reinterpret_cast<const float*>(mesh->mColors),
+		reinterpret_cast<const float*>(rawNormals),
+		reinterpret_cast<const float*>(mesh->mTextureCoords),
+		reinterpret_cast<const float*>(rawTangents)
+	);
+
+	delete[] rawTangents;
+	delete[] rawNormals;
 }
