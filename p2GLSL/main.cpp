@@ -16,8 +16,6 @@
 
 // Scene object IDs
 int objId = -1;
-int obj2Id = -1;
-int objAssimpId = -1;
 
 // CB declaration
 void resizeFunc(int width, int height);
@@ -26,7 +24,6 @@ void keyboardFunc(unsigned char key, int x, int y);
 void mouseFunc(int button, int state, int x, int y);
 void mouseMotionFunc(int x, int y);
 void firstCubeMovement();
-void secondCubeMovement();
 void setViewMatGivenLookAtAndUp();
 void assimpModelLoad();
 
@@ -46,6 +43,9 @@ const float cameraRotationSpeed = glm::radians(10.0f);
 const float cameraYawPitchSpeed = 0.05f;
 int lastXmouse = 0;
 int lastYmouse = 0;
+int mainBifurcations = 0; // 0: cube spinning (better for shaders that use textures)
+						  // 1: suzanne spinning (better for disney shader demonstrations)
+						  // 2: suzanne uploaded from folder with calculated normals (for optional part 6)
 
 int main(int argc, char **argv)
 {
@@ -59,19 +59,20 @@ int main(int argc, char **argv)
 
 	// Adjust the camera
 	setViewMatGivenLookAtAndUp();
-
-	// Create the object we want to visualize
-	//objId = IGlib::createObj(cubeNTriangleIndex, cubeNVertex, cubeTriangleIndex,
-	//						 cubeVertexPos, cubeVertexColor, cubeVertexNormal, cubeVertexTexCoord, cubeVertexTangent);
-
 	
-	
-	// Optional part 6
-	assimpModelLoad();
-	IGlib::setModelMat(objAssimpId, glm::mat4(1.0));
+	switch(mainBifurcations){
+		case 0:
+			objId = IGlib::createObj(cubeNTriangleIndex, cubeNVertex, cubeTriangleIndex, cubeVertexPos, cubeVertexColor, cubeVertexNormal, cubeVertexTexCoord, cubeVertexTangent);
+			break;
+		case 1:
+			objId = IGlib::createObj(SUZANNE_NUM_FACES, SUZANNE_NUM_VERTICES, suzanneFaces, suzanneVertexPos, fillSuzanneVertexColor(), suzanneVertexNormal, generateTriplanar(SUZANNE_NUM_VERTICES, 1.0f).data());
+			break;
+		case 2:
+			assimpModelLoad();
+			break;
+	}	
 	
 	// Add textures here
-	/*
 	std::string albedoTexPath = std::string(TEXTURES_PATH) + "/color.png";
 	std::string emissiveTexPath = std::string(TEXTURES_PATH) + "/emissive.png";
 	std::string specMapTexPath = std::string(TEXTURES_PATH) + "/specMap.png";
@@ -80,7 +81,6 @@ int main(int argc, char **argv)
 	IGlib::addEmissiveTex(objId, emissiveTexPath.c_str());
 	IGlib::addSpecularTex(objId, specMapTexPath.c_str());
 	IGlib::addNormalTex(objId, normalTexPath.c_str());
-	*/
 
 	// CBs
 	IGlib::setIdleCB(idleFunc);
@@ -134,25 +134,19 @@ void idleFunc()
 
 	while (deltaTimeAccumulator >= fixedDeltaTime){
 		angle += angleStep * fixedDeltaTime;
-		//firstCubeMovement();
-		//secondCubeMovement();
+		firstCubeMovement();
 
 		deltaTimeAccumulator -= fixedDeltaTime;
 	}
 }
 
 void firstCubeMovement(){
-	glm::mat4 model = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(0.0f, 1.0f, 0.0f)); 
+	glm::vec3 rotation = glm::vec3(1.0f, 1.0f, 0.0f);
+	if (mainBifurcations != 0){ // rotate suzanne only on y axis
+		rotation = glm::vec3(0.0f, 1.0f, 0.0f);
+	}
+	glm::mat4 model = glm::rotate(glm::mat4(1.0f), angle, rotation); 
 	IGlib::setModelMat(objId, model);
-}
-
-void secondCubeMovement(){
-	// Because it is colMajor, model are all the tranformations applied to the object multiplied in inverse order
-	//glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f)); // just so it is smaller than the first object 
-	glm::mat4 yAxisRotation = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(0.0f, 1.0f, 0.0f)); // rotates around itself
-	glm::mat4 yAxisTranslatedRotation = yAxisRotation * glm::translate(glm::mat4(1.0f), glm::vec3(3.0f, 0.0f, 0.0f)); // first translate and then rotate (reuse yAxisRotation matrix because it rotates around the Y axis which is what we need again)
-	glm::mat4 model = yAxisTranslatedRotation * yAxisRotation; //* scale;
-	IGlib::setModelMat(obj2Id, model);
 }
 
 void setViewMatGivenLookAtAndUp(){
@@ -252,17 +246,15 @@ void assimpModelLoad(){
         glm::vec2 deltaUV1 = glm::vec2(uv1.x - uv0.x, uv1.y - uv0.y);
         glm::vec2 deltaUV2 = glm::vec2(uv2.x - uv0.x, uv2.y - uv0.y);
 
-        // Calculate tangent and bitangent
+        // Calculate tangent
         float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
-
-        // Calculate tangent and bitangent
         glm::vec3 tangent = f * (deltaUV2.y * edge1 - deltaUV1.y * edge2);
 
 		// Calculate normal as cross product of edges
 		glm::vec3 normal = glm::cross(edge1, edge2);
 
 		// For each vertex, we need the average of all tangents, we are gonna use the average based on the triangle area
-		//The area is half of the module of cross product of two edges (the normal)
+		// area is half of the module of cross product of two edges (normal)
 		float area = glm::length(normal) * 0.5f;
 		tangent *= area;
 		normal *= area;
@@ -271,6 +263,7 @@ void assimpModelLoad(){
 		tangents[face.mIndices[0]] += tangent;
 		tangents[face.mIndices[1]] += tangent;
 		tangents[face.mIndices[2]] += tangent;
+		
 		normals[face.mIndices[0]] += normal;
 		normals[face.mIndices[1]] += normal;
 		normals[face.mIndices[2]] += normal;
@@ -280,8 +273,9 @@ void assimpModelLoad(){
 	float* rawNormals = new float[mesh->mNumVertices * 3];
 
 	for (size_t i = 0; i < mesh->mNumVertices; ++i) {
-		tangents[i] = glm::normalize(tangents[i]);
 		normals[i] = glm::normalize(normals[i]);
+		// Gram-Schmidt orthogonalize
+		tangents[i] = glm::normalize(tangents[i] - glm::dot(tangents[i], normals[i]) * normals[i]);		
 
         rawTangents[i * 3] = tangents[i].x;
         rawTangents[i * 3 + 1] = tangents[i].y;
@@ -293,17 +287,22 @@ void assimpModelLoad(){
     }
 		
 
-	objAssimpId = IGlib::createObj(
+	objId = IGlib::createObj(
 		static_cast<unsigned int>(assimpTriangleIndex.size()),
 		static_cast<unsigned int>(mesh->mNumVertices),
 		reinterpret_cast<const unsigned int*>(assimpTriangleIndex.data()),
 		reinterpret_cast<const float*>(mesh->mVertices),
 		reinterpret_cast<const float*>(mesh->mColors),
-		reinterpret_cast<const float*>(rawNormals),
+		//reinterpret_cast<const float*>(mesh->mNormals), // normals of assimp
+		reinterpret_cast<const float*>(rawNormals), // calculated normals
 		reinterpret_cast<const float*>(mesh->mTextureCoords),
-		reinterpret_cast<const float*>(rawTangents)
+		//reinterpret_cast<const float*>(mesh->mTangents) // tangents of assimp
+		reinterpret_cast<const float*>(rawTangents) // calculated tangents
 	);
 
 	delete[] rawTangents;
 	delete[] rawNormals;
+
+	
+	IGlib::setModelMat(objId, glm::mat4(1.0));
 }
