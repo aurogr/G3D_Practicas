@@ -16,6 +16,7 @@
 
 // Scene object IDs
 int objId = -1;
+int obj2Id = -1;
 
 // CB declaration
 void resizeFunc(int width, int height);
@@ -24,6 +25,7 @@ void keyboardFunc(unsigned char key, int x, int y);
 void mouseFunc(int button, int state, int x, int y);
 void mouseMotionFunc(int x, int y);
 void firstCubeMovement();
+void secondCubeMovement();
 void setViewMatGivenLookAtAndUp();
 void assimpModelLoad();
 
@@ -43,17 +45,18 @@ const float cameraRotationSpeed = glm::radians(10.0f);
 const float cameraYawPitchSpeed = 0.05f;
 int lastXmouse = 0;
 int lastYmouse = 0;
-int mainBifurcations = 0; // 0: cube spinning (better for shaders that use textures)
-						  // 1: suzanne spinning (better for disney shader demonstrations)
-						  // 2: suzanne uploaded from folder with calculated normals (for optional part 6)
+int mainBifurcations = 1; // 0: cube spinning (better for shaders that use textures)
+						  // 1: cube spinning and suzanne orbitting (better for ilumination)
+						  // 2: suzanne spinning (better for disney shader demonstrations)
+						  // 3: suzanne uploaded from folder with calculated normals (for optional part 6)
 
 int main(int argc, char **argv)
 {
 #ifdef _WIN32
 	std::locale::global(std::locale("spanish")); // Spanish accents
 #endif
-	std::string vertexShader = std::string(SHADERS_PATH) + "/shader.op6.vert";
-	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.op6.frag";
+	std::string vertexShader = std::string(SHADERS_PATH) + "/shader.ob1.vert";
+	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.ob1.frag";
 	if (!IGlib::init(vertexShader.c_str(), fragmentShader.c_str()))
 		return -1;
 
@@ -65,9 +68,13 @@ int main(int argc, char **argv)
 			objId = IGlib::createObj(cubeNTriangleIndex, cubeNVertex, cubeTriangleIndex, cubeVertexPos, cubeVertexColor, cubeVertexNormal, cubeVertexTexCoord, cubeVertexTangent);
 			break;
 		case 1:
-			objId = IGlib::createObj(SUZANNE_NUM_FACES, SUZANNE_NUM_VERTICES, suzanneFaces, suzanneVertexPos, fillSuzanneVertexColor(), suzanneVertexNormal, generateTriplanar(SUZANNE_NUM_VERTICES, 1.0f).data());
+			objId = IGlib::createObj(cubeNTriangleIndex, cubeNVertex, cubeTriangleIndex, cubeVertexPos, cubeVertexColor, cubeVertexNormal, cubeVertexTexCoord, cubeVertexTangent);
+			obj2Id = IGlib::createObj(SUZANNE_NUM_FACES, SUZANNE_NUM_VERTICES, suzanneFaces, suzanneVertexPos, fillSuzanneVertexColor(), suzanneVertexNormal, generateTriplanar(SUZANNE_NUM_VERTICES, 1.0f).data());
 			break;
 		case 2:
+			objId = IGlib::createObj(SUZANNE_NUM_FACES, SUZANNE_NUM_VERTICES, suzanneFaces, suzanneVertexPos, fillSuzanneVertexColor(), suzanneVertexNormal, generateTriplanar(SUZANNE_NUM_VERTICES, 1.0f).data());
+			break;
+		case 3:
 			assimpModelLoad();
 			break;
 	}	
@@ -136,17 +143,29 @@ void idleFunc()
 		angle += angleStep * fixedDeltaTime;
 		firstCubeMovement();
 
+		if(mainBifurcations == 1)
+			secondCubeMovement();
+
 		deltaTimeAccumulator -= fixedDeltaTime;
 	}
 }
 
 void firstCubeMovement(){
 	glm::vec3 rotation = glm::vec3(1.0f, 1.0f, 0.0f);
-	if (mainBifurcations != 0){ // rotate suzanne only on y axis
+	if (mainBifurcations == 2 || mainBifurcations == 3){ // rotate suzanne only on y axis
 		rotation = glm::vec3(0.0f, 1.0f, 0.0f);
 	}
 	glm::mat4 model = glm::rotate(glm::mat4(1.0f), angle, rotation); 
 	IGlib::setModelMat(objId, model);
+}
+
+void secondCubeMovement(){
+	// Because it is colMajor, model are all the tranformations applied to the object multiplied in inverse order
+	//glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f)); // just so it is smaller than the first object 
+	glm::mat4 yAxisRotation = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(0.0f, 1.0f, 0.0f)); // rotates around itself
+	glm::mat4 yAxisTranslatedRotation = yAxisRotation * glm::translate(glm::mat4(1.0f), glm::vec3(3.0f, 0.0f, 0.0f)); // first translate and then rotate (reuse yAxisRotation matrix because it rotates around the Y axis which is what we need again)
+	glm::mat4 model = yAxisTranslatedRotation * yAxisRotation; //* scale;
+	IGlib::setModelMat(obj2Id, model);
 }
 
 void setViewMatGivenLookAtAndUp(){
