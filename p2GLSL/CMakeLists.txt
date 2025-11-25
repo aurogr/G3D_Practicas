@@ -12,7 +12,7 @@ target_include_directories(p2GLSL PUBLIC ${IGL_INCLUDE})
 
 if(WIN32)
     # Windows system OpenGL
-    target_link_libraries(p2GLSL IGL opengl32 GLEW::GLEW GLUT::GLUT)
+    target_link_libraries(p2GLSL IGL opengl32 GLEW::GLEW GLUT::GLUT assimp::assimp)
 else()
     # Linux / MacOS
     find_package(OpenGL REQUIRED)
