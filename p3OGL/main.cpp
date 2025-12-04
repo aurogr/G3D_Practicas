@@ -120,7 +120,7 @@ void initContext(int argc, char **argv)
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH); // two frame buffers (they swap each frame), one depth buffer
 	glutInitWindowSize(500, 500);
 	glutInitWindowPosition(0, 0);
-	glutCreateWindow("Prácticas OGL");
+	glutCreateWindow("Prï¿½cticas OGL");
 
 	// extensions
 	glewExperimental = GL_TRUE;
@@ -272,8 +272,11 @@ void initObj()
 	model = glm::mat4(1.0f);
 
 	// textures
-	colorTexId = loadTex("../img/color2.png");
-	emiTexId = loadTex("../img/emissive.png");
+	
+	std::string colorTex = std::string(TEXTURES_PATH) + "/color2.png";
+	std::string emissiveTex = std::string(TEXTURES_PATH) + "/emissive.png";
+	colorTexId = loadTex(colorTex.c_str());
+	emiTexId = loadTex(emissiveTex.c_str());
 }
 
 GLuint loadShader(const char *fileName, GLenum type) 
