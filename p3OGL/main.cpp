@@ -43,6 +43,7 @@ int inPos;
 int inColor;
 int inNormal;
 int inTexCoord;
+
 // - Textures
 unsigned int colorTexId;
 unsigned int emiTexId;
@@ -59,7 +60,43 @@ unsigned int texCoordVBO;
 unsigned int triangleIndexVBO;
 
 //////////////////////////////////////////////////////////////
+// New auxiliar variables
+
+//Light attributes
+int inLightPos;
+int inLightIa;
+int inLightId;
+int inLightIs;
+
+glm::vec3 lightPos = glm::vec3(0.0, 0.0, 0.0);
+glm::vec3 lightIa = glm::vec3(0.3, 0.3, 0.3);
+glm::vec3 lightId = glm::vec3(1.0, 1.0, 1.0);
+glm::vec3 lightIs = glm::vec3(1.0, 1.0, 1.0);
+
+int lightKeyboardSetting = 1; // 1 = Ia
+							  // 2 = Id
+							  // 3 = Is
+
+// camera variables
+glm::vec3 COP = glm::vec3(0.0f, 0.0f, 6.0f); // COP is the camera position
+glm::vec3 lookAt = glm::vec3(0.0f, 0.0f, -1.0f); // camera orientation
+glm::vec3 vUp = glm::vec3(0.0f, 1.0f, 0.0f); // camera's up vector
+const float cameraMovementSpeed = 0.3f;
+const float cameraRotationSpeed = glm::radians(10.0f);
+const float cameraYawPitchSpeed = 0.05f;
+int lastXmouse = 0;
+int lastYmouse = 0;
+int mainBifurcations = 1; // 0: cube spinning (better for shaders that use textures)
+						  // 1: cube spinning and suzanne orbitting (better for ilumination)
+						  // 2: suzanne spinning (better for disney shader demonstrations)
+						  // 3: suzanne uploaded from folder with calculated normals (for optional part 6)
+
+//////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////
 // Auxiliar Functions
+
+void setViewMatGivenLookAtAndUp();
 //////////////////////////////////////////////////////////////
 // TO BE IMPLEMENTED
 
@@ -94,8 +131,8 @@ int main(int argc, char **argv)
 
 	initContext(argc, argv);
 	initOGL();
-	std::string vertexShader = std::string(SHADERS_PATH) + "/shader.v0.vert";
-	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.v0.frag";
+	std::string vertexShader = std::string(SHADERS_PATH) + "/shader.ob1.vert";
+	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.ob1.frag";
 	initShader(vertexShader.c_str(), fragmentShader.c_str());
 	initObj();
 
@@ -217,8 +254,11 @@ void initShader(const char *vname, const char *fname)
 	inColor = glGetAttribLocation(program, "inColor");
 	inNormal = glGetAttribLocation(program, "inNormal");
 	inTexCoord = glGetAttribLocation(program, "inTexCoord");	
-
-
+	// idx for light attributes
+	inLightPos = glGetUniformLocation(program, "inLightPos");	
+	inLightIa = glGetUniformLocation(program, "inLightIa");	
+	inLightId = glGetUniformLocation(program, "inLightId");
+	inLightIs = glGetUniformLocation(program, "inLightIs");
 }
 void initObj() 
 {
@@ -361,6 +401,27 @@ void renderFunc()
 		glUniformMatrix4fv(uNormalMat, 1, GL_FALSE,
 			&(normal[0][0]));
 
+	// generate light attributes for render
+	if (inLightPos != -1) // check if attribute 'inPos' is linked to a program socket
+	{
+		glm::vec3 lightPosView = glm::vec3(view * glm::vec4(lightPos, 1));
+		glUniform3fv(inLightPos, 1, &lightPosView[0]);
+	}
+	if (inLightIa != -1) // check if attribute 'inPos' is linked to a program socket
+	{
+		glUniform3fv(inLightIa, 1, &lightIa[0]);
+	}
+	if (inLightId != -1) // check if attribute 'inPos' is linked to a program socket
+	{
+		
+		glUniform3fv(inLightId, 1, &lightId[0]);
+	}
+	if (inLightIs != -1) // check if attribute 'inPos' is linked to a program socket
+	{
+		
+		glUniform3fv(inLightIs, 1, &lightIs[0]);
+	}
+
 	// activate VAO with object configuration
 	glBindVertexArray(vao);
 	// draw triangles
@@ -386,6 +447,8 @@ void renderFunc()
 void resizeFunc(int width, int height) 
 {
 	glViewport(0, 0, width, height);
+	
+	proj = glm::perspective(glm::radians(60.0f), float(width) / float(height), 1.0f, 50.0f);
 
 	// render event
 	glutPostRedisplay();
@@ -395,12 +458,93 @@ void idleFunc()
 	// for object rotation
 	model = glm::mat4(1.0f);
 	static float angle = 0.0f;
-	angle = (angle > 3.141592f * 2.0f) ? 0 : angle + 0.01f;
+	angle = (angle > 3.141592f * 2.0f) ? 0 : angle + 0.001f;
 	model = glm::rotate(model, angle, glm::vec3(1.0f, 1.0f, 0.0f));
 	
 	// render event
 	glutPostRedisplay();
 
 }
-void keyboardFunc(unsigned char key, int x, int y) {}
+
+void keyboardFunc(unsigned char key, int x, int y) {
+	// Keyboard movement for camera
+	if (key == 'w')
+		COP += lookAt * cameraMovementSpeed;
+	else if (key == 's')
+		COP -= lookAt * cameraMovementSpeed;
+
+	if (key == 'd')
+		COP += glm::normalize(glm::cross(lookAt, vUp)) * cameraMovementSpeed;
+	else if (key == 'a')
+		COP -= glm::normalize(glm::cross(lookAt, vUp)) * cameraMovementSpeed;
+
+	if (key == 'e')
+		lookAt = glm::vec3(glm::rotate(glm::mat4(1.0f), -cameraRotationSpeed, glm::vec3(0.0f, 1.0f, 0.0f)) * glm::vec4(lookAt, 0.0f));
+	else if (key == 'q')
+		lookAt = glm::vec3(glm::rotate(glm::mat4(1.0f), cameraRotationSpeed, glm::vec3(0.0f, 1.0f, 0.0f)) * glm::vec4(lookAt, 0.0f));
+
+	setViewMatGivenLookAtAndUp();
+
+	// Light movement :)
+	if (key == 'W')
+		lightPos.z -= 0.1f;
+	else if (key == 'S')
+		lightPos.z += 0.1f;
+
+	if (key == 'D')
+		lightPos.x += 0.1f;
+	else if (key == 'A')
+		lightPos.x -= 0.1f;
+	
+	if (key == 'E')
+		lightPos.y += 0.1f;
+	else if (key == 'Q')
+		lightPos.y -= 0.1f;
+
+	if (key == '1')
+		lightKeyboardSetting = 1;
+	else if (key == '2')
+		lightKeyboardSetting = 2;
+	else if (key == '3')
+		lightKeyboardSetting = 3;
+
+	if(key == '+'){
+		switch(lightKeyboardSetting){
+			case 1:
+				if (lightIa.x < 0.9) lightIa += 0.1f;
+				break;
+			case 2:
+				if (lightIa.x < 0.9) lightId += 0.1f;
+				break;	
+			case 3:
+				if (lightIa.x < 0.9) lightIs += 0.1f;
+				break;
+		}
+	} else if (key == '-')
+	{
+		switch(lightKeyboardSetting){
+			case 1:
+				if (lightIa.x > 0.1) lightIa -= 0.1;
+				break;
+			case 2:
+				if (lightId.x > 0.1)lightId -= 0.1;
+				break;	
+			case 3:
+				if (lightIs.x > 0.1)lightIs -= 0.1;
+				break;
+		}
+	}
+
+	std::cout << "The pressed key is " << key << std::endl << std::endl;
+}
+
+void setViewMatGivenLookAtAndUp(){
+	glm::vec3 n = -glm::normalize(lookAt);
+	glm::vec3 v = glm::normalize(vUp - (n * vUp) * n);
+	glm::vec3 u = glm::cross(v, n);
+
+	glm::mat4 cameraView = glm::mat4(glm::vec4(u, 0), glm::vec4(v, 0), glm::vec4(n, 0), glm::vec4(COP, 1));
+	view = glm::inverse(cameraView);
+}
+
 void mouseFunc(int button, int state, int x, int y) {}
