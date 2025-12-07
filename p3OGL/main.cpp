@@ -86,16 +86,17 @@ const float cameraRotationSpeed = glm::radians(10.0f);
 const float cameraYawPitchSpeed = 0.05f;
 int lastXmouse = 0;
 int lastYmouse = 0;
-int mainBifurcations = 1; // 0: cube spinning (better for shaders that use textures)
-						  // 1: cube spinning and suzanne orbitting (better for ilumination)
-						  // 2: suzanne spinning (better for disney shader demonstrations)
-						  // 3: suzanne uploaded from folder with calculated normals (for optional part 6)
+int mainBifurcations = 0; // 0: cube spinning (better for shaders that use textures)
+						  // 1: cube visualized as a plane for better anisotropic filtering visualization
+
+// Anisotropic filtering
+bool anistropicFilterOn = false;
+GLfloat fLargest;
 
 //////////////////////////////////////////////////////////////
 
 //////////////////////////////////////////////////////////////
 // Auxiliar Functions
-
 void setViewMatGivenLookAtAndUp();
 //////////////////////////////////////////////////////////////
 // TO BE IMPLEMENTED
@@ -128,11 +129,25 @@ int main(int argc, char **argv)
 #ifdef _WIN32
 	std::locale::global(std::locale("spanish")); // Spanish accents
 #endif
+	if (mainBifurcations == 1)
+		anistropicFilterOn = true;
+
+	// Anisotropic filtering
+	if (anistropicFilterOn){
+		
+		if(glewIsSupported("GL_EXT_texture_filter_anisotropic")){
+			anistropicFilterOn = false;
+			std::cout << "Anisotropic filtering is not supported. It has been disabled for the execution." << std::endl;
+		} else
+			glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &fLargest); // get maximum amount of anisotropy supported
+	}
 
 	initContext(argc, argv);
 	initOGL();
-	std::string vertexShader = std::string(SHADERS_PATH) + "/shader.ob1.vert";
-	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.ob1.frag";
+	std::string vertexShader = std::string(SHADERS_PATH) + "/shader.op1.vert";
+	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.op1.frag";
+
+	
 	initShader(vertexShader.c_str(), fragmentShader.c_str());
 	initObj();
 
@@ -373,11 +388,17 @@ unsigned int loadTex(const char *fileName)
 
 	// create texture mipmaps, define access mode
 	glGenerateMipmap(GL_TEXTURE_2D);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); // for zoom out, trilinear interpolation
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);				// for zoom in, bilinear interpolation
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 
+	if (anistropicFilterOn){
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, fLargest); // anistropic filtering
+	} else{
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); // for zoom out, trilinear interpolation
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);				// for zoom in, bilinear interpolation
+	}
+	
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);	
+	
 	return texId; 
 }
 
@@ -444,6 +465,7 @@ void renderFunc()
 
 	glutSwapBuffers();
 }
+
 void resizeFunc(int width, int height) 
 {
 	glViewport(0, 0, width, height);
@@ -453,13 +475,25 @@ void resizeFunc(int width, int height)
 	// render event
 	glutPostRedisplay();
 }
+
 void idleFunc() 
 {
-	// for object rotation
-	model = glm::mat4(1.0f);
-	static float angle = 0.0f;
-	angle = (angle > 3.141592f * 2.0f) ? 0 : angle + 0.001f;
-	model = glm::rotate(model, angle, glm::vec3(1.0f, 1.0f, 0.0f));
+	if (mainBifurcations == 0)
+	{
+		// for object rotation
+		model = glm::mat4(1.0f);
+		static float angle = 0.0f;
+		angle = (angle > 3.141592f * 2.0f) ? 0 : angle + 0.001f;
+		model = glm::rotate(model, angle, glm::vec3(1.0f, 1.0f, 0.0f));
+	} 
+	else if (mainBifurcations == 1)
+	{
+		// for object rotation
+		model = glm::mat4(1.0f);
+		glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(5.0));
+		glm::mat4 translate = glm::translate(glm::mat4(1.0f), glm::vec3(0.0, -7.5, -3.0));
+		model = translate * scale * model;
+	}
 	
 	// render event
 	glutPostRedisplay();
