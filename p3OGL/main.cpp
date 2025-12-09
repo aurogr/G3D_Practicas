@@ -653,6 +653,26 @@ void renderFunc()
 	if (uNormalMat2 != -1)
 		glUniformMatrix4fv(uNormalMat2, 1, GL_FALSE, &(normal[0][0]));
 
+	if (inLightPos != -1) // check if attribute 'inPos' is linked to a program socket
+	{
+		glm::vec3 lightPosView = glm::vec3(view * glm::vec4(lightPos, 1));
+		glUniform3fv(inLightPos, 1, &lightPosView[0]);
+	}
+	if (inLightIa != -1) // check if attribute 'inPos' is linked to a program socket
+	{
+		glUniform3fv(inLightIa, 1, &lightIa[0]);
+	}
+	if (inLightId != -1) // check if attribute 'inPos' is linked to a program socket
+	{
+		
+		glUniform3fv(inLightId, 1, &lightId[0]);
+	}
+	if (inLightIs != -1) // check if attribute 'inPos' is linked to a program socket
+	{
+		
+		glUniform3fv(inLightIs, 1, &lightIs[0]);
+	}
+
 	//Activate textures, bind to active program
 	if (uColorTex2 != -1)
 	{
