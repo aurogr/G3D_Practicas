@@ -383,6 +383,11 @@ void initShader2(const char* vname, const char* fname)
 	inColor2 = glGetAttribLocation(program2, "inColor");
 	inNormal2 = glGetAttribLocation(program2, "inNormal");
 	inTexCoord2 = glGetAttribLocation(program2, "inTexCoord");
+	// idx for light attributes
+	inLightPos = glGetUniformLocation(program, "inLightPos");	
+	inLightIa = glGetUniformLocation(program, "inLightIa");	
+	inLightId = glGetUniformLocation(program, "inLightId");
+	inLightIs = glGetUniformLocation(program, "inLightIs");
 }
 
 void initObj1()
