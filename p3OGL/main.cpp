@@ -803,19 +803,6 @@ void renderFunc()
 
 	// activate VAO with object configuration
 	glBindVertexArray(vao2);
-	//Activate textures, bind to active program
-	if (uColorTex2 != -1)
-	{
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, colorTexId2);
-		glUniform1i(uColorTex2, 0);
-	}
-	if (uEmiTex2 != -1)
-	{
-		glActiveTexture(GL_TEXTURE0 + 1);
-		glBindTexture(GL_TEXTURE_2D, emiTexId2);
-		glUniform1i(uEmiTex2, 1);
-	}
 	// draw triangles
 	glDrawElements(GL_TRIANGLES, cubeNTriangleIndex * 3, GL_UNSIGNED_INT, (void*)0);
 
