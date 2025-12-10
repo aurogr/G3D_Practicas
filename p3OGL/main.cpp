@@ -44,6 +44,8 @@ int uNormalMat;
 // - Uniform Textures
 int uColorTex;
 int uEmiTex;
+int uNormalTex;
+int uSpecTex;
 //Attributes
 int inPos;
 int inColor;
@@ -54,6 +56,8 @@ int inTangent;
 // - Textures
 unsigned int colorTexId;
 unsigned int emiTexId;
+unsigned int normalTexId;
+unsigned int specTexId;
 
 
 /// PROGRAM 2 ///
@@ -70,6 +74,8 @@ int inTangent2;
 // - Textures
 unsigned int colorTexId2;
 unsigned int emiTexId2;
+unsigned int normalTexId2;
+unsigned int specTexId2;
 //Uniform Variables
 int uModelViewMat2;
 int uModelViewProjMat2;
@@ -77,9 +83,11 @@ int uNormalMat2;
 // - Uniform Textures
 int uColorTex2;
 int uEmiTex2;
+int uNormalTex2;
+int uSpecTex2;
 
 //Attributes
-int obj3TrianglesN;
+unsigned int obj3TrianglesN;
 
 //VAO. 1 VAO for each object. Each VAO has multiple VBO
 unsigned int vao;
@@ -101,6 +109,7 @@ unsigned int colorVBO2;
 unsigned int normalVBO2;
 unsigned int texCoordVBO2;
 unsigned int triangleIndexVBO2;
+unsigned int tangentVBO2;
 
 //VAO. 3 VAO for each object. Each VAO has multiple VBO
 unsigned int vao3;
@@ -204,8 +213,10 @@ int main(int argc, char** argv)
 
 	initContext(argc, argv);
 	initOGL();
-	std::string vertexShader = std::string(SHADERS_PATH) + "/shader.v1.vert";
-	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.v1.frag";
+	//std::string vertexShader = std::string(SHADERS_PATH) + "/shader.v1.vert";
+	std::string vertexShader = std::string(SHADERS_PATH) + "/shader.op2_bumpMapping.vert";
+	//std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.v1.frag";
+	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.op2_bumpMapping.frag";
 	initShader1(vertexShader.c_str(), fragmentShader.c_str());
 	vertexShader = std::string(SHADERS_PATH) + "/shader.v0.vert";
 	fragmentShader = std::string(SHADERS_PATH) + "/shader.v0.frag";
@@ -293,6 +304,8 @@ void destroy()
 	// textures
 	glDeleteTextures(1, &colorTexId);
 	glDeleteTextures(1, &emiTexId);
+	glDeleteTextures(1, &normalTexId);
+	glDeleteTextures(1, &specTexId);
 
 	// program 2	
 	glDetachShader(program2, vshader2);
@@ -322,6 +335,8 @@ void destroy()
 	// textures
 	glDeleteTextures(1, &colorTexId2);
 	glDeleteTextures(1, &emiTexId2);
+	glDeleteTextures(1, &normalTexId2);
+	glDeleteTextures(1, &specTexId2);
 }
 
 void initShader1(const char* vname, const char* fname)
@@ -367,6 +382,8 @@ void initShader1(const char* vname, const char* fname)
 	uModelViewProjMat = glGetUniformLocation(program, "modelViewProj");
 	uColorTex = glGetUniformLocation(program, "colorTex");
 	uEmiTex = glGetUniformLocation(program, "emiTex");
+	uNormalTex = glGetUniformLocation(program, "normalTex");
+	uSpecTex = glGetUniformLocation(program, "specularTex");
 	// idx for attributes
 	inPos = glGetAttribLocation(program, "inPos");
 	inColor = glGetAttribLocation(program, "inColor");
@@ -423,6 +440,8 @@ void initShader2(const char* vname, const char* fname)
 	uModelViewProjMat2 = glGetUniformLocation(program2, "modelViewProj");
 	uColorTex2 = glGetUniformLocation(program2, "colorTex");
 	uEmiTex2 = glGetUniformLocation(program2, "emiTex");
+	uNormalTex2 = glGetUniformLocation(program2, "normalTex");
+	uSpecTex2 = glGetUniformLocation(program2, "specularTex");
 	// idx for attributes
 	inPos2 = glGetAttribLocation(program2, "inPos");
 	inColor2 = glGetAttribLocation(program2, "inColor");
@@ -483,9 +502,9 @@ void initObj1()
 	{
 		glGenBuffers(1, &tangentVBO);
 		glBindBuffer(GL_ARRAY_BUFFER, tangentVBO);
-		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 2,
+		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
 			cubeVertexTangent, GL_STATIC_DRAW);
-		glVertexAttribPointer(inTangent, 2, GL_FLOAT, GL_FALSE, 0, 0);
+		glVertexAttribPointer(inTangent, 3, GL_FLOAT, GL_FALSE, 0, 0);
 		glEnableVertexAttribArray(inTangent);
 	}
 	glGenBuffers(1, &triangleIndexVBO);
@@ -499,8 +518,12 @@ void initObj1()
 	// textures
 	std::string colorTex = std::string(TEXTURES_PATH) + "/color2.png";
 	std::string emissiveTex = std::string(TEXTURES_PATH) + "/emissive.png";
+	std::string normalTex = std::string(TEXTURES_PATH) + "/normal.png";
+	std::string specularTex = std::string(TEXTURES_PATH) + "/specMap.png";
 	colorTexId = loadTex(colorTex.c_str());
 	emiTexId = loadTex(emissiveTex.c_str());
+	normalTexId = loadTex(normalTex.c_str());
+	specTexId = loadTex(specularTex.c_str());
 }
 
 void initObj2()
@@ -546,6 +569,15 @@ void initObj2()
 		glVertexAttribPointer(inTexCoord2, 2, GL_FLOAT, GL_FALSE, 0, 0);
 		glEnableVertexAttribArray(inTexCoord2);
 	}
+	if (inTangent2 != -1)
+	{
+		glGenBuffers(1, &tangentVBO2);
+		glBindBuffer(GL_ARRAY_BUFFER, tangentVBO2);
+		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
+			cubeVertexTangent, GL_STATIC_DRAW);
+		glVertexAttribPointer(inTangent2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(inTangent2);
+	}
 	glGenBuffers(1, &triangleIndexVBO2);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, triangleIndexVBO2);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, cubeNTriangleIndex * sizeof(unsigned int) * 3,
@@ -557,8 +589,12 @@ void initObj2()
 	// textures
 	std::string colorTex = std::string(TEXTURES_PATH) + "/color.png";
 	std::string emissiveTex = std::string(TEXTURES_PATH) + "/emissive.png";
+	std::string normalTex = std::string(TEXTURES_PATH) + "/normal.png";
+	std::string specularTex = std::string(TEXTURES_PATH) + "/specMap.png";
 	colorTexId2 = loadTex(colorTex.c_str());
 	emiTexId2 = loadTex(emissiveTex.c_str());
+	normalTexId2 = loadTex(normalTex.c_str());
+	specTexId2 = loadTex(specularTex.c_str());
 }
 
 GLuint loadShader(const char* fileName, GLenum type)
@@ -687,6 +723,17 @@ void renderFunc()
 		glActiveTexture(GL_TEXTURE0 + 1);
 		glBindTexture(GL_TEXTURE_2D, emiTexId);
 		glUniform1i(uEmiTex, 1);
+	}if (uNormalTex != -1)
+	{
+		glActiveTexture(GL_TEXTURE0 + 2);
+		glBindTexture(GL_TEXTURE_2D, normalTexId);
+		glUniform1i(uNormalTex, 2);
+	}
+	if (uSpecTex != -1)
+	{
+		glActiveTexture(GL_TEXTURE0 + 3);
+		glBindTexture(GL_TEXTURE_2D, specTexId);
+		glUniform1i(uSpecTex, 3);
 	}
 
 	// activate VAO with object configuration
@@ -740,6 +787,18 @@ void renderFunc()
 		glActiveTexture(GL_TEXTURE0 + 1);
 		glBindTexture(GL_TEXTURE_2D, emiTexId2);
 		glUniform1i(uEmiTex2, 1);
+	}
+	if (uNormalTex2 != -1)
+	{
+		glActiveTexture(GL_TEXTURE0 + 2);
+		glBindTexture(GL_TEXTURE_2D, normalTexId2);
+		glUniform1i(uNormalTex2, 2);
+	}
+	if (uSpecTex2 != -1)
+	{
+		glActiveTexture(GL_TEXTURE0 + 3);
+		glBindTexture(GL_TEXTURE_2D, specTexId2);
+		glUniform1i(uSpecTex2, 3);
 	}
 
 	// activate VAO with object configuration
@@ -1012,7 +1071,7 @@ void initObj3()
             assimpTriangleIndex.push_back(face.mIndices[j]);
     }
 
-	obj3TrianglesN = assimpTriangleIndex.size();
+	obj3TrianglesN = (unsigned int)assimpTriangleIndex.size();
 
 	std::vector<glm::vec3> tangents;
 	tangents.resize(mesh->mNumVertices);
@@ -1127,7 +1186,7 @@ void initObj3()
 		glBindBuffer(GL_ARRAY_BUFFER, tangentVBO3);
 		glBufferData(GL_ARRAY_BUFFER, mesh->mNumVertices * sizeof(float) * 3,
 			rawTangents, GL_STATIC_DRAW);
-		glVertexAttribPointer(inTangent2, 2, GL_FLOAT, GL_FALSE, 0, 0);
+		glVertexAttribPointer(inTangent2, 3, GL_FLOAT, GL_FALSE, 0, 0);
 		glEnableVertexAttribArray(inTangent2);
 	}
 	glGenBuffers(1, &triangleIndexVBO3);
