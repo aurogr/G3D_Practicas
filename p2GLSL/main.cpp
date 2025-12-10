@@ -227,7 +227,7 @@ void mouseMotionFunc(int x, int y)
 
 void assimpModelLoad(){
 	Assimp::Importer importer;
-	std::string objPath = std::string(SHADERS_PATH) + "/../suzanne.obj";
+	std::string objPath = std::string(SHADERS_PATH) + "/../suzanne.fbx";
     const aiScene* scene = importer.ReadFile(objPath, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace | aiProcess_FlipUVs);
 	
 	aiMesh* mesh = scene->mMeshes[0]; // load first mesh

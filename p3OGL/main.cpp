@@ -11,6 +11,10 @@
 
 #include <iostream>
 
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
 #define PI 3.141592f
 
 //////////////////////////////////////////////////////////////
@@ -22,6 +26,7 @@ glm::mat4 proj = glm::mat4(1.0f);
 glm::mat4 view = glm::mat4(1.0f);
 glm::mat4 model = glm::mat4(1.0f);
 glm::mat4 model2 = glm::mat4(1.0f);
+glm::mat4 model3 = glm::mat4(1.0f);
 
 //////////////////////////////////////////////////////////////
 // Variables to access OpenGL Objects
@@ -44,6 +49,7 @@ int inPos;
 int inColor;
 int inNormal;
 int inTexCoord;
+int inTangent;
 
 // - Textures
 unsigned int colorTexId;
@@ -60,6 +66,7 @@ int inPos2;
 int inColor2;
 int inNormal2;
 int inTexCoord2;
+int inTangent2;
 // - Textures
 unsigned int colorTexId2;
 unsigned int emiTexId2;
@@ -71,6 +78,9 @@ int uNormalMat2;
 int uColorTex2;
 int uEmiTex2;
 
+//Attributes
+int obj3TrianglesN;
+
 //VAO. 1 VAO for each object. Each VAO has multiple VBO
 unsigned int vao;
 
@@ -80,6 +90,7 @@ unsigned int colorVBO;
 unsigned int normalVBO;
 unsigned int texCoordVBO;
 unsigned int triangleIndexVBO;
+unsigned int tangentVBO;
 
 //VAO. 1 VAO for each object. Each VAO has multiple VBO
 unsigned int vao2;
@@ -91,6 +102,16 @@ unsigned int normalVBO2;
 unsigned int texCoordVBO2;
 unsigned int triangleIndexVBO2;
 
+//VAO. 3 VAO for each object. Each VAO has multiple VBO
+unsigned int vao3;
+
+//VBOs for each VAO. Store different types of attributes for the object.
+unsigned int posVBO3;
+unsigned int colorVBO3;
+unsigned int normalVBO3;
+unsigned int texCoordVBO3;
+unsigned int triangleIndexVBO3;
+unsigned int tangentVBO3;
 //////////////////////////////////////////////////////////////
 // New auxiliar variables
 
@@ -100,7 +121,7 @@ int inLightIa;
 int inLightId;
 int inLightIs;
 
-glm::vec3 lightPos = glm::vec3(0.0, 0.0, 0.0);
+glm::vec3 lightPos = glm::vec3(5.0, 0.0, 0.0);
 glm::vec3 lightIa = glm::vec3(0.3, 0.3, 0.3);
 glm::vec3 lightId = glm::vec3(1.0, 1.0, 1.0);
 glm::vec3 lightIs = glm::vec3(1.0, 1.0, 1.0);
@@ -118,18 +139,24 @@ const float cameraRotationSpeed = glm::radians(10.0f);
 const float cameraYawPitchSpeed = 0.05f;
 int lastXmouse = 0;
 int lastYmouse = 0;
+
 int mainBifurcations = 0; // 0: cube spinning (better for shaders that use textures)
 						  // 1: cube visualized as a plane for better anisotropic filtering visualization
 
 // Anisotropic filtering
-bool anistropicFilterOn = false;
+bool anistropicFilterOn = true;
 GLfloat fLargest;
+
+// bezier movement
+float t = 0.0f;
 
 //////////////////////////////////////////////////////////////
 
 //////////////////////////////////////////////////////////////
 // Auxiliar Functions
 void setViewMatGivenLookAtAndUp();
+void assimpModelLoad();
+void bezierMovement();
 //////////////////////////////////////////////////////////////
 // TO BE IMPLEMENTED
 
@@ -139,6 +166,7 @@ void resizeFunc(int width, int height);
 void idleFunc();
 void keyboardFunc(unsigned char key, int x, int y);
 void mouseFunc(int button, int state, int x, int y);
+void mouseMotionFunc(int x, int y);
 
 // Initialization and destruction functions
 void initContext(int argc, char** argv);
@@ -147,6 +175,7 @@ void initShader1(const char* vname, const char* fname);
 void initShader2(const char* vname, const char* fname);
 void initObj1();
 void initObj2();
+void initObj3();
 void destroy();
 
 // Load the specified shader & return shader ID
@@ -175,15 +204,16 @@ int main(int argc, char** argv)
 
 	initContext(argc, argv);
 	initOGL();
-	std::string vertexShader = std::string(SHADERS_PATH) + "/shader.v0.vert";
-	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.v0.frag";
+	std::string vertexShader = std::string(SHADERS_PATH) + "/shader.v1.vert";
+	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.v1.frag";
 	initShader1(vertexShader.c_str(), fragmentShader.c_str());
-	vertexShader = std::string(SHADERS_PATH) + "/shader.v1.vert";
-	fragmentShader = std::string(SHADERS_PATH) + "/shader.v1.frag";
+	vertexShader = std::string(SHADERS_PATH) + "/shader.v0.vert";
+	fragmentShader = std::string(SHADERS_PATH) + "/shader.v0.frag";
 	initShader2(vertexShader.c_str(), fragmentShader.c_str());
 
 	initObj1();
 	initObj2();
+	initObj3();
 
 	glutMainLoop();
 
@@ -225,6 +255,7 @@ void initContext(int argc, char** argv)
 	glutIdleFunc(idleFunc);
 	glutKeyboardFunc(keyboardFunc);
 	glutMouseFunc(mouseFunc);
+	glutMotionFunc(mouseMotionFunc);
 }
 
 void initOGL()
@@ -255,6 +286,7 @@ void destroy()
 	if (inColor != -1) glDeleteBuffers(1, &colorVBO);
 	if (inNormal != -1) glDeleteBuffers(1, &normalVBO);
 	if (inTexCoord != -1) glDeleteBuffers(1, &texCoordVBO);
+	if (inTangent != -1) glDeleteBuffers(1, &tangentVBO);
 	glDeleteBuffers(1, &triangleIndexVBO);
 	glDeleteVertexArrays(1, &vao);
 
@@ -273,9 +305,19 @@ void destroy()
 	if (inColor2 != -1) glDeleteBuffers(1, &colorVBO2);
 	if (inNormal2 != -1) glDeleteBuffers(1, &normalVBO2);
 	if (inTexCoord2 != -1) glDeleteBuffers(1, &texCoordVBO2);	
+	if (inTangent2 != -1) glDeleteBuffers(1, &tangentVBO2);
 	
 	glDeleteBuffers(1, &triangleIndexVBO2);
 	glDeleteVertexArrays(1, &vao2);
+
+	// third object
+	if (inPos2 != -1) glDeleteBuffers(1, &posVBO3);
+	if (inColor2 != -1) glDeleteBuffers(1, &colorVBO3);
+	if (inNormal2 != -1) glDeleteBuffers(1, &normalVBO3);
+	if (inTexCoord2 != -1) glDeleteBuffers(1, &texCoordVBO3);
+	if (inTangent2 != -1) glDeleteBuffers(1, &tangentVBO3);
+	glDeleteBuffers(1, &triangleIndexVBO3);
+	glDeleteVertexArrays(1, &vao3);
 
 	// textures
 	glDeleteTextures(1, &colorTexId2);
@@ -298,6 +340,7 @@ void initShader1(const char* vname, const char* fname)
 	glBindAttribLocation(program, 1, "inColor");
 	glBindAttribLocation(program, 2, "inNormal");
 	glBindAttribLocation(program, 3, "inTexCoord");
+	glBindAttribLocation(program, 4, "inTangent");
 
 	glLinkProgram(program);
 
@@ -329,6 +372,7 @@ void initShader1(const char* vname, const char* fname)
 	inColor = glGetAttribLocation(program, "inColor");
 	inNormal = glGetAttribLocation(program, "inNormal");
 	inTexCoord = glGetAttribLocation(program, "inTexCoord");
+	inTangent = glGetAttribLocation(program, "inTangent");
 	// idx for light attributes
 	inLightPos = glGetUniformLocation(program, "inLightPos");	
 	inLightIa = glGetUniformLocation(program, "inLightIa");	
@@ -352,6 +396,7 @@ void initShader2(const char* vname, const char* fname)
 	glBindAttribLocation(program2, 1, "inColor");
 	glBindAttribLocation(program2, 2, "inNormal");
 	glBindAttribLocation(program2, 3, "inTexCoord");
+	glBindAttribLocation(program2, 4, "inTangent");
 
 	glLinkProgram(program2);
 
@@ -383,11 +428,12 @@ void initShader2(const char* vname, const char* fname)
 	inColor2 = glGetAttribLocation(program2, "inColor");
 	inNormal2 = glGetAttribLocation(program2, "inNormal");
 	inTexCoord2 = glGetAttribLocation(program2, "inTexCoord");
+	inTangent2 = glGetAttribLocation(program2, "inTangent");
 	// idx for light attributes
-	inLightPos = glGetUniformLocation(program, "inLightPos");	
-	inLightIa = glGetUniformLocation(program, "inLightIa");	
-	inLightId = glGetUniformLocation(program, "inLightId");
-	inLightIs = glGetUniformLocation(program, "inLightIs");
+	inLightPos = glGetUniformLocation(program2, "inLightPos");	
+	inLightIa = glGetUniformLocation(program2, "inLightIa");	
+	inLightId = glGetUniformLocation(program2, "inLightId");
+	inLightIs = glGetUniformLocation(program2, "inLightIs");
 }
 
 void initObj1()
@@ -432,6 +478,15 @@ void initObj1()
 			cubeVertexTexCoord, GL_STATIC_DRAW);
 		glVertexAttribPointer(inTexCoord, 2, GL_FLOAT, GL_FALSE, 0, 0);
 		glEnableVertexAttribArray(inTexCoord);
+	}
+	if (inTangent != -1)
+	{
+		glGenBuffers(1, &tangentVBO);
+		glBindBuffer(GL_ARRAY_BUFFER, tangentVBO);
+		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 2,
+			cubeVertexTangent, GL_STATIC_DRAW);
+		glVertexAttribPointer(inTangent, 2, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(inTangent);
 	}
 	glGenBuffers(1, &triangleIndexVBO);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, triangleIndexVBO);
@@ -581,6 +636,27 @@ void renderFunc()
 	// CUBE 1
 	glUseProgram(program);
 
+	// generate light attributes for render
+	if (inLightPos != -1)
+	{
+		glm::vec3 lightPosView = glm::vec3(view * glm::vec4(lightPos, 1));
+		glUniform3fv(inLightPos, 1, &lightPosView[0]);
+	}
+	if (inLightIa != -1)
+	{
+		glUniform3fv(inLightIa, 1, &lightIa[0]);
+	}
+	if (inLightId != -1)
+	{
+		
+		glUniform3fv(inLightId, 1, &lightId[0]);
+	}
+	if (inLightIs != -1)
+	{
+		
+		glUniform3fv(inLightIs, 1, &lightIs[0]);
+	}
+
 	// generate matrices for v shader
 	glm::mat4 modelView = view * model;
 	glm::mat4 modelViewProj = proj * view * model;
@@ -592,27 +668,6 @@ void renderFunc()
 	if (uNormalMat != -1)
 		glUniformMatrix4fv(uNormalMat, 1, GL_FALSE,
 			&(normal[0][0]));
-
-	// generate light attributes for render
-	if (inLightPos != -1) // check if attribute 'inPos' is linked to a program socket
-	{
-		glm::vec3 lightPosView = glm::vec3(view * glm::vec4(lightPos, 1));
-		glUniform3fv(inLightPos, 1, &lightPosView[0]);
-	}
-	if (inLightIa != -1) // check if attribute 'inPos' is linked to a program socket
-	{
-		glUniform3fv(inLightIa, 1, &lightIa[0]);
-	}
-	if (inLightId != -1) // check if attribute 'inPos' is linked to a program socket
-	{
-		
-		glUniform3fv(inLightId, 1, &lightId[0]);
-	}
-	if (inLightIs != -1) // check if attribute 'inPos' is linked to a program socket
-	{
-		
-		glUniform3fv(inLightIs, 1, &lightIs[0]);
-	}
 
 	// activate VAO with object configuration
 	glBindVertexArray(vao);
@@ -642,6 +697,26 @@ void renderFunc()
 	// CUBE 2
 	glUseProgram(program2);
 
+	if (inLightPos != -1)
+	{
+		glm::vec3 lightPosView = glm::vec3(view * glm::vec4(lightPos, 1));
+		glUniform3fv(inLightPos, 1, &lightPosView[0]);
+	}
+	if (inLightIa != -1)
+	{
+		glUniform3fv(inLightIa, 1, &lightIa[0]);
+	}
+	if (inLightId != -1)
+	{
+		
+		glUniform3fv(inLightId, 1, &lightId[0]);
+	}
+	if (inLightIs != -1)
+	{
+		
+		glUniform3fv(inLightIs, 1, &lightIs[0]);
+	}
+
 	// generate matrices for v shader
 	modelView = view * model2;
 	modelViewProj = proj * view * model2;
@@ -652,26 +727,6 @@ void renderFunc()
 		glUniformMatrix4fv(uModelViewProjMat2, 1, GL_FALSE, &(modelViewProj[0][0]));
 	if (uNormalMat2 != -1)
 		glUniformMatrix4fv(uNormalMat2, 1, GL_FALSE, &(normal[0][0]));
-
-	if (inLightPos != -1) // check if attribute 'inPos' is linked to a program socket
-	{
-		glm::vec3 lightPosView = glm::vec3(view * glm::vec4(lightPos, 1));
-		glUniform3fv(inLightPos, 1, &lightPosView[0]);
-	}
-	if (inLightIa != -1) // check if attribute 'inPos' is linked to a program socket
-	{
-		glUniform3fv(inLightIa, 1, &lightIa[0]);
-	}
-	if (inLightId != -1) // check if attribute 'inPos' is linked to a program socket
-	{
-		
-		glUniform3fv(inLightId, 1, &lightId[0]);
-	}
-	if (inLightIs != -1) // check if attribute 'inPos' is linked to a program socket
-	{
-		
-		glUniform3fv(inLightIs, 1, &lightIs[0]);
-	}
 
 	//Activate textures, bind to active program
 	if (uColorTex2 != -1)
@@ -689,8 +744,38 @@ void renderFunc()
 
 	// activate VAO with object configuration
 	glBindVertexArray(vao2);
+	//Activate textures, bind to active program
+	if (uColorTex2 != -1)
+	{
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, colorTexId2);
+		glUniform1i(uColorTex2, 0);
+	}
+	if (uEmiTex2 != -1)
+	{
+		glActiveTexture(GL_TEXTURE0 + 1);
+		glBindTexture(GL_TEXTURE_2D, emiTexId2);
+		glUniform1i(uEmiTex2, 1);
+	}
 	// draw triangles
 	glDrawElements(GL_TRIANGLES, cubeNTriangleIndex * 3, GL_UNSIGNED_INT, (void*)0);
+
+	// CUBE 3 (its going to have the same textures as the previous cube)
+	// activate VAO with object configuration
+	glBindVertexArray(vao3);
+	// generate matrices for v shader
+	modelView = view * model3;
+	modelViewProj = proj * view * model3;
+	normal = glm::transpose(glm::inverse(modelView));
+	if (uModelViewMat2 != -1)
+		glUniformMatrix4fv(uModelViewMat2, 1, GL_FALSE, &(modelView[0][0]));
+	if (uModelViewProjMat2 != -1)
+		glUniformMatrix4fv(uModelViewProjMat2, 1, GL_FALSE, &(modelViewProj[0][0]));
+	if (uNormalMat2 != -1)
+		glUniformMatrix4fv(uNormalMat2, 1, GL_FALSE, &(normal[0][0]));
+	// draw triangles
+	glDrawElements(GL_TRIANGLES, obj3TrianglesN * 3,
+		GL_UNSIGNED_INT, (void*)0);
 
 	glutSwapBuffers();
 }
@@ -710,21 +795,24 @@ void idleFunc()
 	if (mainBifurcations == 0)
 	{
 		// object 1 movement
-    model = glm::mat4(1.0f);
-    static float angle = 0.0f;
-    angle = (angle > 3.141592f * 2.0f) ? 0 : angle + 0.0001f;
-    model = glm::rotate(model, angle, glm::vec3(1.0f, 1.0f, 0.0f));
+		model = glm::mat4(1.0f);
+		static float angle = 0.0f;
+		angle = (angle > 3.141592f * 2.0f) ? 0 : angle + 0.0001f;
+		model = glm::rotate(model, angle, glm::vec3(1.0f, 1.0f, 0.0f));
 
-    // object 2 movement
-    model2 = glm::mat4(1.0f);
-    // for orbital movement
-    glm::mat4 orbitRotation = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(0.0f, 1.0f, 0.0f));
-    glm::mat4 traslation = glm::translate(glm::mat4(1.0f), glm::vec3(3.0f, 0.0f, 0.0f));
-    // other
-    glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(-1.0f, 1.0f, 0.0f));
-    glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
+		// object 2 movement
+		model2 = glm::mat4(1.0f);
+		// for orbital movement
+		glm::mat4 orbitRotation = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(0.0f, 1.0f, 0.0f));
+		glm::mat4 traslation = glm::translate(glm::mat4(1.0f), glm::vec3(3.0f, 0.0f, 0.0f));
+		// other
+		glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(-1.0f, 1.0f, 0.0f));
+		glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
 
-    model2 = orbitRotation * traslation * rotation * scale;
+		model2 = orbitRotation * traslation * rotation * scale;
+
+		// object 3 movement
+		bezierMovement();
 	} 
 	else if (mainBifurcations == 1)
 	{
@@ -733,12 +821,42 @@ void idleFunc()
 		glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(5.0));
 		glm::mat4 translate = glm::translate(glm::mat4(1.0f), glm::vec3(0.0, -7.5, -3.0));
 		model = translate * scale * model;
-    
-    model2 = glm::mat4(1.0f);
 	}
 	
 	// render event
 	glutPostRedisplay();
+}
+
+void bezierMovement(){
+	// Bezier is an aproximation algorithm, which means it only goes through first and las point, and aproximates the rest.
+	// 4 control points, the last one in the same position as the first to make a loop
+	// We need to use the parameter t to control the movement.
+
+	// t parameter
+	t = t + 0.00005f;
+	if (t >= 1.0f) // go back to 0 to loop
+		t = 0.0f;
+
+	// Control points
+	glm::vec2 P0 = glm::vec2(-5.0f, 0.0f);
+	glm::vec2 P1 = glm::vec2(7.0f, 10.0f);
+	glm::vec2 P2 = glm::vec2(7.0f, -10.0f);
+	glm::vec2 P3 = P0;
+
+	float B0 = pow((1.0f - t), 3.0f);
+	float B1 = 3.0f * pow((1.0f - t), 2.0f) * t;
+	float B2 = 3.0f * (1.0f - t) * pow(t, 2.0f);
+	float B3 = pow(t, 3.0f);
+
+	// Scale (make it smaller than the other ones to differenciate them)
+	glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.3f));
+
+	// Bezier curve for m = 3 (this is a translation)
+	float xAxis = B0 * P0.x + B1 * P1.x + B2 * P2.x + B3 * P3.x;
+	float zAxis = B0 * P0.y + B1 * P1.y + B2 * P2.y + B3 * P3.y;
+	glm::mat4 bezier = glm::translate(glm::mat4(1.0f), glm::vec3(xAxis, 0.0f, zAxis));
+
+	model3 = bezier * scale;
 }
 
 void keyboardFunc(unsigned char key, int x, int y) {
@@ -786,26 +904,26 @@ void keyboardFunc(unsigned char key, int x, int y) {
 	if(key == '+'){
 		switch(lightKeyboardSetting){
 			case 1:
-				if (lightIa.x < 0.9) lightIa += 0.1f;
+				if (lightIa.x < 1.0) lightIa += 0.1f;
 				break;
 			case 2:
-				if (lightIa.x < 0.9) lightId += 0.1f;
+				if (lightIa.x < 1.0) lightId += 0.1f;
 				break;	
 			case 3:
-				if (lightIa.x < 0.9) lightIs += 0.1f;
+				if (lightIa.x < 1.0) lightIs += 0.1f;
 				break;
 		}
 	} else if (key == '-')
 	{
 		switch(lightKeyboardSetting){
 			case 1:
-				if (lightIa.x > 0.1) lightIa -= 0.1;
+				if (lightIa.x > 0.0) lightIa -= 0.1;
 				break;
 			case 2:
-				if (lightId.x > 0.1)lightId -= 0.1;
+				if (lightId.x > 0.0)lightId -= 0.1;
 				break;	
 			case 3:
-				if (lightIs.x > 0.1)lightIs -= 0.1;
+				if (lightIs.x > 0.0)lightIs -= 0.1;
 				break;
 		}
 	}
@@ -822,4 +940,202 @@ void setViewMatGivenLookAtAndUp(){
 	view = glm::inverse(cameraView);
 }
 
-void mouseFunc(int button, int state, int x, int y) {}
+void mouseFunc(int button, int state, int x, int y) {
+	if (state==0)
+		std::cout << "The pressed button is ";
+	else
+		std::cout << "The released button is ";
+	
+	if (button == 0) std::cout << "left mouse button " << std::endl;
+	if (button == 1) std::cout << "central mouse button " << std::endl;
+	if (button == 2) std::cout << "right mouse button " << std::endl;
+
+	std::cout << "in the window's position " << x << " " << y << std::endl << std::endl;
+}
+
+void mouseMotionFunc(int x, int y){	
+	// the vector that we want to rotate is the want that goes from the camera to the object we orbit aroundv
+	// that object is at (0,0,0) so the vector in this case is just the COP
+	glm::vec3 camFocusVector = COP;
+
+	// because we have another functionality moving the camera around the scene
+	// and it can no longer look at the direction of the cube all the time
+	// we always reset the lookAt to look at the cube when orbiting so the functionality makes sense
+	lookAt = glm::normalize(-camFocusVector);
+
+	float rotationSpeed = cameraYawPitchSpeed;
+	if (x != lastXmouse){ // yaw (rotates camFocusVector around up vector) 
+		if (x < lastXmouse) 
+			rotationSpeed = -rotationSpeed;
+		
+		camFocusVector = glm::vec3(glm::rotate(glm::mat4(1.0f), rotationSpeed, vUp) * glm::vec4(camFocusVector, 0.0f));
+		COP = camFocusVector;
+		lookAt = glm::normalize(-camFocusVector);
+	}
+		
+	if (y != lastYmouse){ // pitch (rotates camFocusVector around right vector)
+		if (y < lastYmouse) 
+			rotationSpeed = -rotationSpeed;
+
+		glm::vec3 right = glm::normalize(cross(lookAt, vUp));
+		camFocusVector = camFocusVector = glm::vec3(glm::rotate(glm::mat4(1.0f), rotationSpeed, right) * glm::vec4(camFocusVector, 0.0f));
+		COP = camFocusVector;
+		lookAt = glm::normalize(-camFocusVector);
+		vUp = glm::normalize(cross(right, lookAt));
+	} 
+
+	// set mouse values for next call
+	lastXmouse = x;
+	lastYmouse = y;
+
+	setViewMatGivenLookAtAndUp();
+}
+
+void initObj3()
+{
+	// create and activate VAO
+	glGenVertexArrays(1, &vao3);
+	glBindVertexArray(vao3);
+
+	// obtener modelo de assimp
+	Assimp::Importer importer;
+	std::string objPath = std::string(SHADERS_PATH) + "/../sphere.obj";
+    const aiScene* scene = importer.ReadFile(objPath, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace | aiProcess_FlipUVs);
+	
+	aiMesh* mesh = scene->mMeshes[0]; // load first mesh
+
+    // triangle index because assimp stores them in faces and we need the whole array
+	std::vector<unsigned int> assimpTriangleIndex;
+    for (unsigned int i = 0; i < mesh->mNumFaces; ++i) {
+        aiFace face = mesh->mFaces[i];
+        for (unsigned int j = 0; j < face.mNumIndices; ++j)
+            assimpTriangleIndex.push_back(face.mIndices[j]);
+    }
+
+	obj3TrianglesN = assimpTriangleIndex.size();
+
+	std::vector<glm::vec3> tangents;
+	tangents.resize(mesh->mNumVertices);
+	std::vector<glm::vec3> normals;
+	normals.resize(mesh->mNumVertices);
+
+	// Calculate normals and tangents (from texture coordinates)
+	for (unsigned int i = 0; i < mesh->mNumFaces; ++i) {
+        aiFace face = mesh->mFaces[i];
+
+		// Get triangle (face) vertices and UV coordinates
+		aiVector3D& v0 = mesh->mVertices[face.mIndices[0]];
+        aiVector3D& v1 = mesh->mVertices[face.mIndices[1]];
+        aiVector3D& v2 = mesh->mVertices[face.mIndices[2]];
+
+        aiVector3D& uv0 = mesh->mTextureCoords[0][face.mIndices[0]];
+        aiVector3D& uv1 = mesh->mTextureCoords[0][face.mIndices[1]];
+        aiVector3D& uv2 = mesh->mTextureCoords[0][face.mIndices[2]];
+
+		// Get edges and deltaUV coordinates
+        glm::vec3 edge1 = glm::vec3(v1.x - v0.x, v1.y - v0.y, v1.z - v0.z);
+        glm::vec3 edge2 = glm::vec3(v2.x - v0.x, v2.y - v0.y, v2.z - v0.z);
+
+        glm::vec2 deltaUV1 = glm::vec2(uv1.x - uv0.x, uv1.y - uv0.y);
+        glm::vec2 deltaUV2 = glm::vec2(uv2.x - uv0.x, uv2.y - uv0.y);
+
+        // Calculate tangent
+        float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+        glm::vec3 tangent = f * (deltaUV2.y * edge1 - deltaUV1.y * edge2);
+
+		// Calculate normal as cross product of edges
+		glm::vec3 normal = glm::cross(edge1, edge2);
+
+		// For each vertex, we need the average of all tangents, we are gonna use the average based on the triangle area
+		// area is half of the module of cross product of two edges (normal)
+		float area = glm::length(normal) * 0.5f;
+		tangent *= area;
+		normal *= area;
+
+		// store
+		tangents[face.mIndices[0]] += tangent;
+		tangents[face.mIndices[1]] += tangent;
+		tangents[face.mIndices[2]] += tangent;
+		
+		normals[face.mIndices[0]] += normal;
+		normals[face.mIndices[1]] += normal;
+		normals[face.mIndices[2]] += normal;
+    }
+
+	float* rawTangents = new float[mesh->mNumVertices * 3];
+	float* rawNormals = new float[mesh->mNumVertices * 3];
+	float* rawColors = new float[mesh->mNumVertices * 3]; // porque el modelo no tiene colores en los vertices, inicializamos a rojo
+
+	for (size_t i = 0; i < mesh->mNumVertices; ++i) {
+		normals[i] = glm::normalize(normals[i]);
+		// Gram-Schmidt orthogonalize
+		tangents[i] = glm::normalize(tangents[i] - glm::dot(tangents[i], normals[i]) * normals[i]);		
+
+        rawTangents[i * 3] = tangents[i].x;
+        rawTangents[i * 3 + 1] = tangents[i].y;
+        rawTangents[i * 3 + 2] = tangents[i].z;
+		
+        rawNormals[i * 3] = normals[i].x;
+        rawNormals[i * 3 + 1] = normals[i].y;
+        rawNormals[i * 3 + 2] = normals[i].z;
+
+		rawColors[i * 3] = 1;
+        rawColors[i * 3 + 1] = 0;
+        rawColors[i * 3 + 2] = 0;
+    }
+
+	// create and configure mesh attributes
+	if (inPos2 != -1)
+	{
+		glGenBuffers(1, &posVBO3);
+		glBindBuffer(GL_ARRAY_BUFFER, posVBO3);
+		glBufferData(GL_ARRAY_BUFFER, mesh->mNumVertices * sizeof(float) * 3,
+			mesh->mVertices, GL_STATIC_DRAW);
+		glVertexAttribPointer(inPos2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(inPos2);
+	}
+	if (inColor2 != -1)
+	{
+		glGenBuffers(1, &colorVBO3);
+		glBindBuffer(GL_ARRAY_BUFFER, colorVBO3);
+		glBufferData(GL_ARRAY_BUFFER, mesh->mNumVertices * sizeof(float) * 3,
+			rawColors, GL_STATIC_DRAW);
+		glVertexAttribPointer(inColor2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(inColor2);
+	}
+	if (inNormal2 != -1)
+	{
+		glGenBuffers(1, &normalVBO3);
+		glBindBuffer(GL_ARRAY_BUFFER, normalVBO3);
+		glBufferData(GL_ARRAY_BUFFER, mesh->mNumVertices * sizeof(float) * 3,
+			mesh->mNormals, GL_STATIC_DRAW);
+		glVertexAttribPointer(inNormal2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(inNormal2);
+	}
+	if (inTexCoord2 != -1)
+	{
+		glGenBuffers(1, &texCoordVBO3);
+		glBindBuffer(GL_ARRAY_BUFFER, texCoordVBO3);
+		glBufferData(GL_ARRAY_BUFFER, mesh->mNumVertices * sizeof(float) * 2,
+			mesh->mTextureCoords[0], GL_STATIC_DRAW);
+		glVertexAttribPointer(inTexCoord2, 2, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(inTexCoord2);
+	}
+	if (inTangent2 != -1)
+	{
+		glGenBuffers(1, &tangentVBO3);
+		glBindBuffer(GL_ARRAY_BUFFER, tangentVBO3);
+		glBufferData(GL_ARRAY_BUFFER, mesh->mNumVertices * sizeof(float) * 3,
+			rawTangents, GL_STATIC_DRAW);
+		glVertexAttribPointer(inTangent2, 2, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(inTangent2);
+	}
+	glGenBuffers(1, &triangleIndexVBO3);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, triangleIndexVBO3);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, assimpTriangleIndex.size() * sizeof(unsigned int) * 3,
+		assimpTriangleIndex.data(), GL_STATIC_DRAW);
+
+	delete[] rawTangents;
+	delete[] rawNormals;
+	delete[] rawColors;
+}
