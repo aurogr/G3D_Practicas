@@ -46,13 +46,6 @@ int uColorTex;
 int uEmiTex;
 int uNormalTex;
 int uSpecTex;
-//Attributes
-int inPos;
-int inColor;
-int inNormal;
-int inTexCoord;
-int inTangent;
-
 // - Textures
 unsigned int colorTexId;
 unsigned int emiTexId;
@@ -65,17 +58,6 @@ unsigned int vshader2;
 unsigned int fshader2;
 unsigned int program2;
 
-//Attributes
-int inPos2;
-int inColor2;
-int inNormal2;
-int inTexCoord2;
-int inTangent2;
-// - Textures
-unsigned int colorTexId2;
-unsigned int emiTexId2;
-unsigned int normalTexId2;
-unsigned int specTexId2;
 //Uniform Variables
 int uModelViewMat2;
 int uModelViewProjMat2;
@@ -182,9 +164,9 @@ void initContext(int argc, char** argv);
 void initOGL();
 void initShader1(const char* vname, const char* fname);
 void initShader2(const char* vname, const char* fname);
-void initObj1();
-void initObj2();
-void initObj3();
+void initCube();
+void initAssimp();
+void initTextures();
 void destroy();
 
 // Load the specified shader & return shader ID
@@ -218,13 +200,12 @@ int main(int argc, char** argv)
 	//std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.v1.frag";
 	std::string fragmentShader = std::string(SHADERS_PATH) + "/shader.op2_bumpMapping.frag";
 	initShader1(vertexShader.c_str(), fragmentShader.c_str());
-	vertexShader = std::string(SHADERS_PATH) + "/shader.v0.vert";
-	fragmentShader = std::string(SHADERS_PATH) + "/shader.v0.frag";
+	vertexShader = std::string(SHADERS_PATH) + "/shader.v1.vert";
+	fragmentShader = std::string(SHADERS_PATH) + "/shader.v1.frag";
 	initShader2(vertexShader.c_str(), fragmentShader.c_str());
-
-	initObj1();
-	initObj2();
-	initObj3();
+	initTextures();
+	initCube();
+	initAssimp();
 
 	glutMainLoop();
 
@@ -292,12 +273,12 @@ void destroy()
 	glDeleteShader(fshader);
 	glDeleteProgram(program);
 
-	// VAO VBO
-	if (inPos != -1) glDeleteBuffers(1, &posVBO);
-	if (inColor != -1) glDeleteBuffers(1, &colorVBO);
-	if (inNormal != -1) glDeleteBuffers(1, &normalVBO);
-	if (inTexCoord != -1) glDeleteBuffers(1, &texCoordVBO);
-	if (inTangent != -1) glDeleteBuffers(1, &tangentVBO);
+	// 1. VAO VBO
+	glDeleteBuffers(1, &posVBO);
+	glDeleteBuffers(1, &colorVBO);
+	glDeleteBuffers(1, &normalVBO);
+	glDeleteBuffers(1, &texCoordVBO);
+	glDeleteBuffers(1, &tangentVBO);
 	glDeleteBuffers(1, &triangleIndexVBO);
 	glDeleteVertexArrays(1, &vao);
 
@@ -314,29 +295,14 @@ void destroy()
 	glDeleteShader(fshader2);
 	glDeleteProgram(program2);
 
-	if (inPos2 != -1) glDeleteBuffers(1, &posVBO2);
-	if (inColor2 != -1) glDeleteBuffers(1, &colorVBO2);
-	if (inNormal2 != -1) glDeleteBuffers(1, &normalVBO2);
-	if (inTexCoord2 != -1) glDeleteBuffers(1, &texCoordVBO2);	
-	if (inTangent2 != -1) glDeleteBuffers(1, &tangentVBO2);
-	
-	glDeleteBuffers(1, &triangleIndexVBO2);
-	glDeleteVertexArrays(1, &vao2);
-
-	// third object
-	if (inPos2 != -1) glDeleteBuffers(1, &posVBO3);
-	if (inColor2 != -1) glDeleteBuffers(1, &colorVBO3);
-	if (inNormal2 != -1) glDeleteBuffers(1, &normalVBO3);
-	if (inTexCoord2 != -1) glDeleteBuffers(1, &texCoordVBO3);
-	if (inTangent2 != -1) glDeleteBuffers(1, &tangentVBO3);
+	// 2. VAO VBO
+	glDeleteBuffers(1, &posVBO3);
+	glDeleteBuffers(1, &colorVBO3);
+	glDeleteBuffers(1, &normalVBO3);
+	glDeleteBuffers(1, &texCoordVBO3);
+	glDeleteBuffers(1, &tangentVBO3);
 	glDeleteBuffers(1, &triangleIndexVBO3);
 	glDeleteVertexArrays(1, &vao3);
-
-	// textures
-	glDeleteTextures(1, &colorTexId2);
-	glDeleteTextures(1, &emiTexId2);
-	glDeleteTextures(1, &normalTexId2);
-	glDeleteTextures(1, &specTexId2);
 }
 
 void initShader1(const char* vname, const char* fname)
@@ -384,12 +350,6 @@ void initShader1(const char* vname, const char* fname)
 	uEmiTex = glGetUniformLocation(program, "emiTex");
 	uNormalTex = glGetUniformLocation(program, "normalTex");
 	uSpecTex = glGetUniformLocation(program, "specularTex");
-	// idx for attributes
-	inPos = glGetAttribLocation(program, "inPos");
-	inColor = glGetAttribLocation(program, "inColor");
-	inNormal = glGetAttribLocation(program, "inNormal");
-	inTexCoord = glGetAttribLocation(program, "inTexCoord");
-	inTangent = glGetAttribLocation(program, "inTangent");
 	// idx for light attributes
 	inLightPos = glGetUniformLocation(program, "inLightPos");	
 	inLightIa = glGetUniformLocation(program, "inLightIa");	
@@ -442,12 +402,6 @@ void initShader2(const char* vname, const char* fname)
 	uEmiTex2 = glGetUniformLocation(program2, "emiTex");
 	uNormalTex2 = glGetUniformLocation(program2, "normalTex");
 	uSpecTex2 = glGetUniformLocation(program2, "specularTex");
-	// idx for attributes
-	inPos2 = glGetAttribLocation(program2, "inPos");
-	inColor2 = glGetAttribLocation(program2, "inColor");
-	inNormal2 = glGetAttribLocation(program2, "inNormal");
-	inTexCoord2 = glGetAttribLocation(program2, "inTexCoord");
-	inTangent2 = glGetAttribLocation(program2, "inTangent");
 	// idx for light attributes
 	inLightPos = glGetUniformLocation(program2, "inLightPos");	
 	inLightIa = glGetUniformLocation(program2, "inLightIa");	
@@ -455,58 +409,48 @@ void initShader2(const char* vname, const char* fname)
 	inLightIs = glGetUniformLocation(program2, "inLightIs");
 }
 
-void initObj1()
+void initCube()
 {
 	// create and activate VAO
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
 	// create and configure mesh attributes
-	if (inPos != -1) // check if attribute 'inPos' is linked to a program socket
-	{
-		glGenBuffers(1, &posVBO);
-		glBindBuffer(GL_ARRAY_BUFFER, posVBO);
-		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
-			cubeVertexPos, GL_STATIC_DRAW);
-		glVertexAttribPointer(inPos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inPos);
-	}
-	if (inColor != -1)
-	{
-		glGenBuffers(1, &colorVBO);
-		glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
-		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
-			cubeVertexColor, GL_STATIC_DRAW);
-		glVertexAttribPointer(inColor, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inColor);
-	}
-	if (inNormal != -1)
-	{
-		glGenBuffers(1, &normalVBO);
-		glBindBuffer(GL_ARRAY_BUFFER, normalVBO);
-		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
-			cubeVertexNormal, GL_STATIC_DRAW);
-		glVertexAttribPointer(inNormal, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inNormal);
-	}
-	if (inTexCoord != -1)
-	{
-		glGenBuffers(1, &texCoordVBO);
-		glBindBuffer(GL_ARRAY_BUFFER, texCoordVBO);
-		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 2,
-			cubeVertexTexCoord, GL_STATIC_DRAW);
-		glVertexAttribPointer(inTexCoord, 2, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inTexCoord);
-	}
-	if (inTangent != -1)
-	{
-		glGenBuffers(1, &tangentVBO);
-		glBindBuffer(GL_ARRAY_BUFFER, tangentVBO);
-		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
-			cubeVertexTangent, GL_STATIC_DRAW);
-		glVertexAttribPointer(inTangent, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inTangent);
-	}
+	glGenBuffers(1, &posVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, posVBO);
+	glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
+		cubeVertexPos, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(0);
+	
+	glGenBuffers(1, &colorVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
+	glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
+		cubeVertexColor, GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(1);
+	
+	glGenBuffers(1, &normalVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, normalVBO);
+	glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
+		cubeVertexNormal, GL_STATIC_DRAW);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(2);
+	
+	glGenBuffers(1, &texCoordVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, texCoordVBO);
+	glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 2,
+		cubeVertexTexCoord, GL_STATIC_DRAW);
+	glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(3);
+	
+	glGenBuffers(1, &tangentVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, tangentVBO);
+	glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
+		cubeVertexTangent, GL_STATIC_DRAW);
+	glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(4);
+
 	glGenBuffers(1, &triangleIndexVBO);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, triangleIndexVBO);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, cubeNTriangleIndex * sizeof(unsigned int) * 3,
@@ -514,8 +458,10 @@ void initObj1()
 
 	// model matrix for this object
 	model = glm::mat4(1.0f);
+}
 
-	// textures
+void initTextures() 
+{
 	std::string colorTex = std::string(TEXTURES_PATH) + "/color2.png";
 	std::string emissiveTex = std::string(TEXTURES_PATH) + "/emissive.png";
 	std::string normalTex = std::string(TEXTURES_PATH) + "/normal.png";
@@ -526,76 +472,6 @@ void initObj1()
 	specTexId = loadTex(specularTex.c_str());
 }
 
-void initObj2()
-{
-	// create and activate VAO
-	glGenVertexArrays(1, &vao2);
-	glBindVertexArray(vao2);
-
-	// create and configure mesh attributes
-	if (inPos2 != -1) // check if attribute 'inPos2' is linked to a program socket
-	{
-		glGenBuffers(1, &posVBO2);
-		glBindBuffer(GL_ARRAY_BUFFER, posVBO2);
-		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
-			cubeVertexPos, GL_STATIC_DRAW);
-		glVertexAttribPointer(inPos2, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inPos2);
-	}
-	if (inColor2 != -1)
-	{
-		glGenBuffers(1, &colorVBO2);
-		glBindBuffer(GL_ARRAY_BUFFER, colorVBO2);
-		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
-			cubeVertexColor, GL_STATIC_DRAW);
-		glVertexAttribPointer(inColor2, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inColor2);
-	}
-	if (inNormal2 != -1)
-	{
-		glGenBuffers(1, &normalVBO2);
-		glBindBuffer(GL_ARRAY_BUFFER, normalVBO2);
-		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
-			cubeVertexNormal, GL_STATIC_DRAW);
-		glVertexAttribPointer(inNormal2, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inNormal2);
-	}
-	if (inTexCoord2 != -1)
-	{
-		glGenBuffers(1, &texCoordVBO2);
-		glBindBuffer(GL_ARRAY_BUFFER, texCoordVBO2);
-		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 2,
-			cubeVertexTexCoord, GL_STATIC_DRAW);
-		glVertexAttribPointer(inTexCoord2, 2, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inTexCoord2);
-	}
-	if (inTangent2 != -1)
-	{
-		glGenBuffers(1, &tangentVBO2);
-		glBindBuffer(GL_ARRAY_BUFFER, tangentVBO2);
-		glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
-			cubeVertexTangent, GL_STATIC_DRAW);
-		glVertexAttribPointer(inTangent2, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inTangent2);
-	}
-	glGenBuffers(1, &triangleIndexVBO2);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, triangleIndexVBO2);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, cubeNTriangleIndex * sizeof(unsigned int) * 3,
-		cubeTriangleIndex, GL_STATIC_DRAW);
-
-	// model matrix for this object
-	model = glm::mat4(1.0f);
-
-	// textures
-	std::string colorTex = std::string(TEXTURES_PATH) + "/color.png";
-	std::string emissiveTex = std::string(TEXTURES_PATH) + "/emissive.png";
-	std::string normalTex = std::string(TEXTURES_PATH) + "/normal.png";
-	std::string specularTex = std::string(TEXTURES_PATH) + "/specMap.png";
-	colorTexId2 = loadTex(colorTex.c_str());
-	emiTexId2 = loadTex(emissiveTex.c_str());
-	normalTexId2 = loadTex(normalTex.c_str());
-	specTexId2 = loadTex(specularTex.c_str());
-}
 
 GLuint loadShader(const char* fileName, GLenum type)
 {
@@ -779,30 +655,28 @@ void renderFunc()
 	if (uColorTex2 != -1)
 	{
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, colorTexId2);
+		glBindTexture(GL_TEXTURE_2D, colorTexId);
 		glUniform1i(uColorTex2, 0);
 	}
 	if (uEmiTex2 != -1)
 	{
 		glActiveTexture(GL_TEXTURE0 + 1);
-		glBindTexture(GL_TEXTURE_2D, emiTexId2);
+		glBindTexture(GL_TEXTURE_2D, emiTexId);
 		glUniform1i(uEmiTex2, 1);
 	}
 	if (uNormalTex2 != -1)
 	{
 		glActiveTexture(GL_TEXTURE0 + 2);
-		glBindTexture(GL_TEXTURE_2D, normalTexId2);
+		glBindTexture(GL_TEXTURE_2D, normalTexId);
 		glUniform1i(uNormalTex2, 2);
 	}
 	if (uSpecTex2 != -1)
 	{
 		glActiveTexture(GL_TEXTURE0 + 3);
-		glBindTexture(GL_TEXTURE_2D, specTexId2);
+		glBindTexture(GL_TEXTURE_2D, specTexId);
 		glUniform1i(uSpecTex2, 3);
 	}
 
-	// activate VAO with object configuration
-	glBindVertexArray(vao2);
 	// draw triangles
 	glDrawElements(GL_TRIANGLES, cubeNTriangleIndex * 3, GL_UNSIGNED_INT, (void*)0);
 
@@ -1037,7 +911,7 @@ void mouseMotionFunc(int x, int y){
 	setViewMatGivenLookAtAndUp();
 }
 
-void initObj3()
+void initAssimp()
 {
 	// create and activate VAO
 	glGenVertexArrays(1, &vao3);
@@ -1131,51 +1005,41 @@ void initObj3()
     }
 
 	// create and configure mesh attributes
-	if (inPos2 != -1)
-	{
-		glGenBuffers(1, &posVBO3);
+	glGenBuffers(1, &posVBO3);
 		glBindBuffer(GL_ARRAY_BUFFER, posVBO3);
 		glBufferData(GL_ARRAY_BUFFER, mesh->mNumVertices * sizeof(float) * 3,
 			mesh->mVertices, GL_STATIC_DRAW);
-		glVertexAttribPointer(inPos2, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inPos2);
-	}
-	if (inColor2 != -1)
-	{
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(0);
+	
 		glGenBuffers(1, &colorVBO3);
 		glBindBuffer(GL_ARRAY_BUFFER, colorVBO3);
 		glBufferData(GL_ARRAY_BUFFER, mesh->mNumVertices * sizeof(float) * 3,
 			rawColors, GL_STATIC_DRAW);
-		glVertexAttribPointer(inColor2, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inColor2);
-	}
-	if (inNormal2 != -1)
-	{
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(1);
+
 		glGenBuffers(1, &normalVBO3);
 		glBindBuffer(GL_ARRAY_BUFFER, normalVBO3);
 		glBufferData(GL_ARRAY_BUFFER, mesh->mNumVertices * sizeof(float) * 3,
 			mesh->mNormals, GL_STATIC_DRAW);
-		glVertexAttribPointer(inNormal2, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inNormal2);
-	}
-	if (inTexCoord2 != -1)
-	{
+		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(2);
+
 		glGenBuffers(1, &texCoordVBO3);
 		glBindBuffer(GL_ARRAY_BUFFER, texCoordVBO3);
 		glBufferData(GL_ARRAY_BUFFER, mesh->mNumVertices * sizeof(float) * 2,
 			mesh->mTextureCoords[0], GL_STATIC_DRAW);
-		glVertexAttribPointer(inTexCoord2, 2, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inTexCoord2);
-	}
-	if (inTangent2 != -1)
-	{
+		glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(3);
+
 		glGenBuffers(1, &tangentVBO3);
 		glBindBuffer(GL_ARRAY_BUFFER, tangentVBO3);
 		glBufferData(GL_ARRAY_BUFFER, mesh->mNumVertices * sizeof(float) * 3,
 			rawTangents, GL_STATIC_DRAW);
-		glVertexAttribPointer(inTangent2, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(inTangent2);
-	}
+		glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(4);
+	
 	glGenBuffers(1, &triangleIndexVBO3);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, triangleIndexVBO3);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, assimpTriangleIndex.size() * sizeof(unsigned int) * 3,
