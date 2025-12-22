@@ -13,8 +13,10 @@
 #include <iostream>
 #include <cstdlib>
 
-#include "gbuffer.h"
-#include "gbuffer.cpp"
+#include "helpers\gbuffer.h"
+#include "helpers\gbuffer.cpp"
+#include "helpers\shaderProgram.h"
+#include "helpers\shaderProgram.cpp"
 
 #define PI 3.141592f
 #define RAND_SEED 31415926
@@ -62,14 +64,6 @@ unsigned int fbo;
 unsigned int colorBuffTexId;
 unsigned int depthBuffTexId;
 
-// TO BE DEFINED
-unsigned int dSGeomVShader;
-unsigned int dSGeomFShader;
-unsigned int dsLightVShader; 
-unsigned int dsLightFShader; 
-unsigned int dsGeomProgram;
-unsigned int dsLightProgram;
-
 //////////////////////////////////////////////////////////////
 // Auxiliar functions
 //////////////////////////////////////////////////////////////
@@ -86,7 +80,6 @@ void renderCube();
 // Initialization and destruction functions
 void initContext(int argc, char **argv);
 void initOGL();
-void initShader(const char *vname, const char *fname, unsigned int &program, unsigned int &vshader, unsigned int &fshader);
 void initObj();
 void initPlane();
 void initFBO();
@@ -106,6 +99,8 @@ unsigned int loadTex(const char *fileName);
 // New auxiliar variables
 //////////////////////////////////////////////////////////////
 GBuffer gBuffer;
+ShaderProgram dsGeomShader;
+ShaderProgram dsLightShader;
 //////////////////////////////////////////////////////////////
 // New auxiliar functions
 //////////////////////////////////////////////////////////////
@@ -117,9 +112,18 @@ int main(int argc, char **argv)
 
 	initContext(argc, argv);
 	initOGL();
-	// Geometry shader
-	initShader((std::string(SHADERS_PATH) + "/deferred.Geometry.vert").c_str(), (std::string(SHADERS_PATH) + "/deferred.Geometry.frag").c_str(), dsGeomProgram, dSGeomVShader, dSGeomFShader);
-	initShader((std::string(SHADERS_PATH) + "/deferred.Lighting.vert").c_str(), (std::string(SHADERS_PATH) + "/deferred.Lighting.frag").c_str(), dsLightProgram, dsLightVShader, dsLightFShader);
+
+	// Geometry shader program
+	char const* dsGeomAttribs[] = { "inPos", "inColor", "inNormal", "inTexCoord", nullptr};
+	std::string dsGeomVShaderPath = std::string(SHADERS_PATH) + "/deferred.Geometry.vert";
+	std::string dsGeomFShaderPath = std::string(SHADERS_PATH) + "/deferred.Geometry.frag";
+	dsGeomShader.Init(dsGeomVShaderPath.c_str(), dsGeomFShaderPath.c_str(), dsGeomAttribs);
+	// Lighting shader program
+	char const* dsLightAttribs[] = { "inPos", nullptr};
+	std::string dsLightVShaderPath = std::string(SHADERS_PATH) + "/deferred.Lighting.vert";
+	std::string dsLightFShaderPath = std::string(SHADERS_PATH) + "/deferred.Lighting.frag";
+	dsLightShader.Init(dsLightVShaderPath.c_str(), dsLightFShaderPath.c_str(), dsLightAttribs);
+	
 	initObj();
 	initPlane();
 	gBuffer.Init();
@@ -181,17 +185,8 @@ void initOGL()
 
 void destroy()
 {
-	glDetachShader(dsGeomProgram, dSGeomVShader);
-	glDetachShader(dsGeomProgram, dSGeomFShader);
-	glDeleteShader(dSGeomVShader);
-	glDeleteShader(dSGeomFShader);
-	glDeleteProgram(dsGeomProgram);
-
-	glDetachShader(dsGeomProgram, dsLightVShader);
-	glDetachShader(dsLightProgram, dsLightFShader);
-	glDeleteShader(dsLightVShader);
-	glDeleteShader(dsLightFShader);
-	glDeleteProgram(dsLightProgram);
+	dsGeomShader.Destroy();
+	dsLightShader.Destroy();
 
 	glDeleteBuffers(1, &posVBO);
 	glDeleteBuffers(1, &colorVBO);
@@ -216,41 +211,6 @@ void destroy()
 
 }
 
-void initShader(const char *vname, const char *fname, unsigned int &program, unsigned int &vshader, unsigned int &fshader)
-{
-	vshader = loadShader(vname, GL_VERTEX_SHADER);
-	fshader = loadShader(fname, GL_FRAGMENT_SHADER);
-
-	program = glCreateProgram();
-	glAttachShader(program, vshader);
-	glAttachShader(program, fshader);
-
-	glBindAttribLocation(program, 0, "inPos");
-	glBindAttribLocation(program, 1, "inColor");
-	glBindAttribLocation(program, 2, "inNormal");
-	glBindAttribLocation(program, 3, "inTexCoord");
-
-	glLinkProgram(program);
-
-	int linked;
-	glGetProgramiv(program, GL_LINK_STATUS, &linked);
-	if (!linked)
-	{
-		// Compute error string
-		GLint logLen;
-		glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLen);
-
-		char *logString = new char[logLen];
-		glGetProgramInfoLog(program, logLen, NULL, logString);
-		std::cout << "Error: " << logString << std::endl;
-		delete[] logString;
-
-		glDeleteProgram(program);
-		program = 0;
-		exit(-1);
-	}
-}
-
 void initObj()
 {
 	glGenVertexArrays(1, &vao);
@@ -260,29 +220,29 @@ void initObj()
 	glBindBuffer(GL_ARRAY_BUFFER, posVBO);
 	glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
 					cubeVertexPos, GL_STATIC_DRAW);
-	glVertexAttribPointer(glGetAttribLocation(dsGeomProgram, "inPos"), 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(glGetAttribLocation(dsGeomProgram, "inPos"));
+	glVertexAttribPointer(glGetAttribLocation(dsGeomShader.program, "inPos"), 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(glGetAttribLocation(dsGeomShader.program, "inPos"));
 
 	glGenBuffers(1, &colorVBO);
 	glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
 	glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
 					cubeVertexColor, GL_STATIC_DRAW);
-	glVertexAttribPointer(glGetAttribLocation(dsGeomProgram, "inColor"), 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(glGetAttribLocation(dsGeomProgram, "inColor"));
+	glVertexAttribPointer(glGetAttribLocation(dsGeomShader.program, "inColor"), 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(glGetAttribLocation(dsGeomShader.program, "inColor"));
 
 	glGenBuffers(1, &normalVBO);
 	glBindBuffer(GL_ARRAY_BUFFER, normalVBO);
 	glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
 					cubeVertexNormal, GL_STATIC_DRAW);
-	glVertexAttribPointer(glGetAttribLocation(dsGeomProgram, "inNormal"), 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(glGetAttribLocation(dsGeomProgram, "inNormal"));
-	
+	glVertexAttribPointer(glGetAttribLocation(dsGeomShader.program, "inNormal"), 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(glGetAttribLocation(dsGeomShader.program, "inNormal"));
+
 	glGenBuffers(1, &texCoordVBO);
 	glBindBuffer(GL_ARRAY_BUFFER, texCoordVBO);
 	glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 2,
 					cubeVertexTexCoord, GL_STATIC_DRAW);
-	glVertexAttribPointer(glGetAttribLocation(dsGeomProgram, "inTexCoord"), 2, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(glGetAttribLocation(dsGeomProgram, "inTexCoord"));
+	glVertexAttribPointer(glGetAttribLocation(dsGeomShader.program, "inTexCoord"), 2, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(glGetAttribLocation(dsGeomShader.program, "inTexCoord"));
 
 	glGenBuffers(1, &triangleIndexVBO);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, triangleIndexVBO);
@@ -309,42 +269,8 @@ void initPlane()
 	glBindBuffer(GL_ARRAY_BUFFER, planeVertexVBO);
 	glBufferData(GL_ARRAY_BUFFER, planeNVertex * sizeof(float) * 3,
 		planeVertexPos, GL_STATIC_DRAW);
-	glVertexAttribPointer(glGetAttribLocation(dsLightProgram, "inPos"), 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(glGetAttribLocation(dsLightProgram, "inPos"));
-}
-
-GLuint loadShader(const char *fileName, GLenum type)
-{
-	unsigned int fileLen;
-	char *source = loadStringFromFile(fileName, fileLen);
-
-	//////////////////////////////////////////////
-	// Shader creation & compilation
-	GLuint shader;
-	shader = glCreateShader(type);
-	glShaderSource(shader, 1, (const GLchar **)&source, (const GLint *)&fileLen);
-	glCompileShader(shader);
-	delete[] source;
-
-	// Check compilation status
-	GLint compiled;
-	glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
-	if (!compiled)
-	{
-		// Compute error string
-		GLint logLen;
-		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLen);
-
-		char *logString = new char[logLen];
-		glGetShaderInfoLog(shader, logLen, NULL, logString);
-		std::cout << "Error: " << logString << std::endl;
-		delete[] logString;
-
-		glDeleteShader(shader);
-		exit(-1);
-	}
-
-	return shader;
+	glVertexAttribPointer(glGetAttribLocation(dsLightShader.program, "inPos"), 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(glGetAttribLocation(dsLightShader.program, "inPos"));
 }
 
 unsigned int loadTex(const char *fileName)
@@ -382,19 +308,18 @@ void renderFunc()
 	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer.gFbo);
 	glClearColor(0.2f, 0.2f, 0.2f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glUseProgram(dsGeomProgram);
+    dsGeomShader.Use();
     // Textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, colorTexId);
-	glUniform1i(glGetUniformLocation(dsGeomProgram, "colorTex"), 0);
+	glUniform1i(glGetUniformLocation(dsGeomShader.program, "colorTex"), 0);
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, specularTexId);
-	glUniform1i(glGetUniformLocation(dsGeomProgram, "specularTex"), 1);
-
+	glUniform1i(glGetUniformLocation(dsGeomShader.program, "specularTex"), 1);
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, emiTexId);
-	glUniform1i(glGetUniformLocation(dsGeomProgram, "emiTex"), 2);
+	glUniform1i(glGetUniformLocation(dsGeomShader.program, "emiTex"), 2);
 
 	// render cubes
 	model = glm::mat4(2.0f);
@@ -432,24 +357,22 @@ void renderFunc()
 	glClearColor(0.2f, 0.2f, 0.2f, 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	
-	glUseProgram(dsLightProgram);
+	dsLightShader.Use();
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, gBuffer.gPosition);
-	glUniform1i(glGetUniformLocation(dsLightProgram, "gPosition"), 0);
+	glUniform1i(glGetUniformLocation(dsLightShader.program, "gPosition"), 0);
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, gBuffer.gNormal);
-	glUniform1i(glGetUniformLocation(dsLightProgram, "gNormal"), 1);
-
+	glUniform1i(glGetUniformLocation(dsLightShader.program, "gNormal"), 1);
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, gBuffer.gAlbedoSpec);
-	glUniform1i(glGetUniformLocation(dsLightProgram, "gAlbedoSpec"), 2);
+	glUniform1i(glGetUniformLocation(dsLightShader.program, "gAlbedoSpec"), 2);
 
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, gBuffer.gEmissive);
-	glUniform1i(glGetUniformLocation(dsLightProgram, "gEmissive"), 3);
-
+	glUniform1i(glGetUniformLocation(dsLightShader.program, "gEmissive"), 3);
 
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);
@@ -474,9 +397,9 @@ void renderCube()
 	glm::mat4 modelViewProj = proj * view * model;
 	glm::mat4 normal = glm::transpose(glm::inverse(modelView));
 
-	glUniformMatrix4fv(glGetUniformLocation(dsGeomProgram, "modelView"), 1, GL_FALSE, &(modelView[0][0]));
-	glUniformMatrix4fv(glGetUniformLocation(dsGeomProgram, "modelViewProj"), 1, GL_FALSE, &(modelViewProj[0][0]));
-	glUniformMatrix4fv(glGetUniformLocation(dsGeomProgram, "normal"), 1, GL_FALSE, &(normal[0][0]));
+	glUniformMatrix4fv(glGetUniformLocation(dsGeomShader.program, "modelView"), 1, GL_FALSE, &(modelView[0][0]));
+	glUniformMatrix4fv(glGetUniformLocation(dsGeomShader.program, "modelViewProj"), 1, GL_FALSE, &(modelViewProj[0][0]));
+	glUniformMatrix4fv(glGetUniformLocation(dsGeomShader.program, "normal"), 1, GL_FALSE, &(normal[0][0]));
 
 	glBindVertexArray(vao);
 	glDrawElements(GL_TRIANGLES, cubeNTriangleIndex * 3, GL_UNSIGNED_INT, (void *)0);
