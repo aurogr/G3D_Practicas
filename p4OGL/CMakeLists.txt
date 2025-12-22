@@ -1,8 +1,13 @@
 project(p4OGL VERSION 1.0.0 LANGUAGES CXX)
 
-set(p4OGL_SOURCES 
-    main.cpp
-)
+set_property(CACHE APP_VERSION PROPERTY STRINGS "" v0 v1 deferred)
+
+# Decide which main file to use
+if (APP_VERSION STREQUAL "")
+    set(p4OGL_SOURCES main.cpp)
+else()
+    set(p4OGL_SOURCES main.${APP_VERSION}.cpp)
+endif()
 
 include_directories(${FREEIMAGE_INCLUDE_DIRS})
 

@@ -16,6 +16,9 @@ find_package(GLEW REQUIRED)
 find_package(glm REQUIRED)
 find_package(assimp CONFIG REQUIRED)
 
+# necesario para la practica 4 que tiene varios archivos main
+set(APP_VERSION "" CACHE STRING "Select app version (empty for default)")
+
 add_subdirectory( IGL )
 
 add_subdirectory(p1GLSL)
