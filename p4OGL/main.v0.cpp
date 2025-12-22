@@ -1,6 +1,7 @@
 ﻿/////////////////////////////////////////////////////////////
-/////////////////// DEPTH OF FIELD VERSION //////////////////
+/////////////////// MOTION BLUR VERSION /////////////////////
 /////////////////////////////////////////////////////////////
+
 #include <IGL/BOX.h>
 #include <IGL/PLANE.h>
 #include <IGL/auxiliar.h>
@@ -19,8 +20,6 @@
 #define PI 3.141592f
 #define RAND_SEED 31415926
 #define SCREEN_SIZE 500, 500
-
-
 
 //////////////////////////////////////////////////////////////
 // Data stored in CPU memory
@@ -78,8 +77,6 @@ int uColorTex;
 int uSpecularTex;
 int uEmiTex;
 unsigned int uColorTexPP;
-unsigned int uVertexTexPP;
-unsigned int vertexBuffTexId;
 
 // Attributes
 int inPos;
@@ -136,11 +133,11 @@ int main(int argc, char **argv)
 
 	initContext(argc, argv);
 	initOGL();
-	std::string vertexShader = std::string(SHADERS_PATH) + "/fwRendering.v1.vert";
-	std::string fragmentShader = std::string(SHADERS_PATH) + "/fwRendering.v1.frag";
+	std::string vertexShader = std::string(SHADERS_PATH) + "/fwRendering.v0.vert";
+	std::string fragmentShader = std::string(SHADERS_PATH) + "/fwRendering.v0.frag";
 	initShaderFw(vertexShader.c_str(), fragmentShader.c_str());
-	vertexShader = std::string(SHADERS_PATH) + "/postProcessing.v2.vert";
-	fragmentShader = std::string(SHADERS_PATH) + "/postProcessing.v2.frag";
+	vertexShader = std::string(SHADERS_PATH) + "/postProcessing.v0.vert";
+	fragmentShader = std::string(SHADERS_PATH) + "/postProcessing.v0.frag";
 	initShaderPP(vertexShader.c_str(), fragmentShader.c_str());
 	initObj();
 	initPlane();
@@ -234,7 +231,7 @@ void destroy()
 	glDeleteTextures(1, &colorBuffTexId);
 	glDeleteTextures(1, &depthBuffTexId);
 
-	glDeleteTextures(1, &vertexBuffTexId);
+
 	glDeleteTextures(1, &colorTexId);
 	glDeleteTextures(1, &specularTexId);
 	glDeleteTextures(1, &emiTexId);
@@ -320,7 +317,6 @@ void initShaderPP(const char* vname, const char* fname)
 
 	uColorTexPP = glGetUniformLocation(postProcessProgram, "colorTex");
 	inPosPP = glGetAttribLocation(postProcessProgram, "inPos");
-	uVertexTexPP = glGetUniformLocation(postProcessProgram, "vertexTex");
 }
 
 void initObj()
@@ -402,15 +398,14 @@ void initFBO()
 	glGenFramebuffers(1, &fbo);
 	glGenTextures(1, &colorBuffTexId);
 	glGenTextures(1, &depthBuffTexId);
-	glGenTextures(1, &vertexBuffTexId);
 }
 
 void resizeFBO(unsigned int w, unsigned int h) 
 {
 	glBindTexture(GL_TEXTURE_2D, colorBuffTexId);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_FLOAT, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 
@@ -419,19 +414,12 @@ void resizeFBO(unsigned int w, unsigned int h)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-	glBindTexture(GL_TEXTURE_2D, vertexBuffTexId);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, w, h, 0,
-		GL_RGBA, GL_UNSIGNED_BYTE, 0);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffTexId, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffTexId, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, vertexBuffTexId, 0);
-	
-	const GLenum buffs[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-	glDrawBuffers(2, buffs);
+
+	const GLenum buffs[1] = { GL_COLOR_ATTACHMENT0 };
+	glDrawBuffers(1, buffs);
 
 	if (GL_FRAMEBUFFER_COMPLETE != glCheckFramebufferStatus(GL_FRAMEBUFFER))
 	{
@@ -561,6 +549,14 @@ void renderFunc()
 		renderCube();
 	}
 
+	glEnable(GL_BLEND);
+	//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	//glBlendEquation(GL_FUNC_ADD);
+	glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA);
+	glBlendColor(0.5f, 0.5f, 0.5f, 0.6f);
+	glBlendEquation(GL_FUNC_ADD);
+
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	glUseProgram(postProcessProgram);
@@ -574,12 +570,6 @@ void renderFunc()
 		glBindTexture(GL_TEXTURE_2D, colorBuffTexId);
 		glUniform1i(uColorTexPP, 0);
 	}
-	if (uVertexTexPP != -1)
-	{
-		glActiveTexture(GL_TEXTURE0 + 1);
-		glBindTexture(GL_TEXTURE_2D, vertexBuffTexId);
-		glUniform1i(uVertexTexPP, 1);
-	}	
 
 	glBindVertexArray(planeVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -587,6 +577,8 @@ void renderFunc()
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
 	
+	glDisable(GL_BLEND);
+
 	glutSwapBuffers();
 }
 

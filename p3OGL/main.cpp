@@ -82,17 +82,6 @@ unsigned int texCoordVBO;
 unsigned int triangleIndexVBO;
 unsigned int tangentVBO;
 
-//VAO. 1 VAO for each object. Each VAO has multiple VBO
-unsigned int vao2;
-
-//VBOs for each VAO. Store different types of attributes for the object.
-unsigned int posVBO2;
-unsigned int colorVBO2;
-unsigned int normalVBO2;
-unsigned int texCoordVBO2;
-unsigned int triangleIndexVBO2;
-unsigned int tangentVBO2;
-
 //VAO. 3 VAO for each object. Each VAO has multiple VBO
 unsigned int vao3;
 
