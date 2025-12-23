@@ -117,8 +117,8 @@ int main(int argc, char **argv)
 	
 	// Forward shader program
 	char const* forwardAttribs[] = { "inPos", "inColor", "inNormal", "inTexCoord", nullptr};
-	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.motionBlur.vert";
-	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.motionBlur.frag";
+	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.vert";
+	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.frag";
 	forwardShader.Init(forwardVShaderPath.c_str(), forwardFShaderPath.c_str(), forwardAttribs);
 	// Post-process shader program
 	char const* postProcessAttribs[] = { "inPos", nullptr};

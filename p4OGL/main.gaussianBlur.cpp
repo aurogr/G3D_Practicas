@@ -127,8 +127,8 @@ int main(int argc, char **argv)
 	
 	// Forward shader program
 	char const* forwardAttribs[] = { "inPos", "inColor", "inNormal", "inTexCoord", nullptr};
-	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.gaussianBlur.vert";
-	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.gaussianBlur.frag";
+	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.vert";
+	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.frag";
 	forwardShader.Init(forwardVShaderPath.c_str(), forwardFShaderPath.c_str(), forwardAttribs);
 		std::cout << "here." << std::endl;
 	// Post-process shader program
