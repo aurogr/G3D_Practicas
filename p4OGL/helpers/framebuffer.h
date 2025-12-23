@@ -8,9 +8,10 @@ class FrameBuffer
     public:
         unsigned int idFbo;
         unsigned int idColorBuffer;
+        unsigned int idVertexBuffer;
         unsigned int idDepthBuffer;
 
         void Init();
-        void Resize(unsigned int w, unsigned int h);
+        void Resize(unsigned int w, unsigned int h, bool useLinearMode, bool usevertexBuffer);
         void Destroy();   
 };
