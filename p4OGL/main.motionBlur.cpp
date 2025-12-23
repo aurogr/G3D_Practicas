@@ -129,7 +129,7 @@ int main(int argc, char **argv)
 	initObj();
 	initPlane();
 	fbo.Init();
-	fbo.Resize(SCREEN_SIZE);
+	fbo.Resize(SCREEN_SIZE, false, false);
 
 	glutMainLoop();
 
@@ -174,7 +174,6 @@ void initContext(int argc, char **argv)
 void initOGL()
 {
 	glEnable(GL_DEPTH_TEST);
-	glClearColor(0.2f, 0.2f, 0.2f, 0.0f);
 
 	glFrontFace(GL_CCW);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -350,8 +349,11 @@ void renderFunc()
 
 	// ---------- POST PROCESSING ----------
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA); 
-	glBlendColor(0.5f, 0.5f, 0.5f, 0.6); 
+	
+	// change last frame intensity based on motionBlurIntensity
+
+	glBlendFunc(GL_ONE_MINUS_CONSTANT_ALPHA, GL_CONSTANT_ALPHA); 
+	glBlendColor(0.0f, 0.0f, 0.0f, motionBlurIntensity);
 	glBlendEquation(GL_FUNC_ADD);
 
 	// llamar al default framebuffer para pintar el postproceso
@@ -360,6 +362,8 @@ void renderFunc()
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, fbo.idColorBuffer);
 	glUniform1i(postProcessShader.GetUniformLocation("colorTex"), 0);
+
+
 
 	// pintar quad
 	postProcessShader.Use();
@@ -395,7 +399,7 @@ void resizeFunc(int width, int height)
 	glViewport(0, 0, width, height);
 	proj = glm::perspective(glm::radians(60.0f), float(width) / float(height), 1.0f, 50.0f);
 
-	fbo.Resize(width, height);
+	fbo.Resize(width, height, false, false);
 	glutPostRedisplay();
 }
 
@@ -438,12 +442,12 @@ void keyboardFunc(unsigned char key, int x, int y) {
 	// motion blur intensity control
 	if (key == '+') {
 		motionBlurIntensity += 0.1f;
-		if (motionBlurIntensity > 1.0f) motionBlurIntensity = 1.0f;
+		if (motionBlurIntensity > 0.9f) motionBlurIntensity = 0.9f;
 		std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
 	}
 	if (key == '-') {
 		motionBlurIntensity -= 0.1f;
-		if (motionBlurIntensity < 0.0f) motionBlurIntensity = 0.0f;
+		if (motionBlurIntensity < 0.1f) motionBlurIntensity = 0.1f;
 		std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
 	}
 }
