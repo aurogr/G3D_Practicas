@@ -75,8 +75,6 @@ void initContext(int argc, char **argv);
 void initOGL();
 void initObj();
 void initPlane();
-void initFBO();
-void resizeFBO(unsigned int w, unsigned int h);
 void destroy();
 
 // Texture creation, configuration and upload to OpenGL
@@ -86,7 +84,8 @@ unsigned int loadTex(const char *fileName);
 //////////////////////////////////////////////////////////////
 // New auxiliar variables
 //////////////////////////////////////////////////////////////
-FrameBuffer fbo;
+FrameBuffer fboHorizontal;
+FrameBuffer fboVertical;
 ShaderProgram forwardShader;
 ShaderProgram postProcessShader;
 float motionBlurIntensity = 0.5f;
@@ -117,19 +116,29 @@ int main(int argc, char **argv)
 	
 	// Forward shader program
 	char const* forwardAttribs[] = { "inPos", "inColor", "inNormal", "inTexCoord", nullptr};
-	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.v0.vert";
-	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.v0.frag";
+	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.v1.vert";
+	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.v1.frag";
 	forwardShader.Init(forwardVShaderPath.c_str(), forwardFShaderPath.c_str(), forwardAttribs);
+		std::cout << "here." << std::endl;
 	// Post-process shader program
 	char const* postProcessAttribs[] = { "inPos", nullptr};
-	std::string postProcessVShaderPath = std::string(SHADERS_PATH) + "/postProcessing.v0.vert";
-	std::string postProcessFShaderPath = std::string(SHADERS_PATH) + "/postProcessing.v0.frag";
+	std::string postProcessVShaderPath = std::string(SHADERS_PATH) + "/postProcessing.gaussianBlur.vert";
+	std::string postProcessFShaderPath = std::string(SHADERS_PATH) + "/postProcessing.gaussianBlur.frag";
 	postProcessShader.Init(postProcessVShaderPath.c_str(), postProcessFShaderPath.c_str(), postProcessAttribs);
+		std::cout << "eree." << std::endl;
 
 	initObj();
 	initPlane();
-	fbo.Init();
-	fbo.Resize(SCREEN_SIZE);
+
+	fboHorizontal.Init();
+	fboHorizontal.Resize(SCREEN_SIZE, false, false);
+
+	std::cout << "Horizontal FBO ID: " << fboHorizontal.idFbo << std::endl;
+
+	fboVertical.Init();
+	fboVertical.Resize(SCREEN_SIZE, false, false);
+
+	std::cout << "Vertical FBO ID: " << fboVertical.idFbo << std::endl;
 
 	glutMainLoop();
 
@@ -174,7 +183,6 @@ void initContext(int argc, char **argv)
 void initOGL()
 {
 	glEnable(GL_DEPTH_TEST);
-	glClearColor(0.2f, 0.2f, 0.2f, 0.0f);
 
 	glFrontFace(GL_CCW);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -205,7 +213,7 @@ void destroy()
 	glDeleteTextures(1, &specularTexId);
 	glDeleteTextures(1, &emiTexId);
 
-	fbo.Destroy();
+	fboHorizontal.Destroy();
 }
 
 void initObj()
@@ -301,7 +309,7 @@ unsigned int loadTex(const char *fileName)
 
 void renderFunc()
 {
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo.idFbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fboHorizontal.idFbo);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -348,30 +356,37 @@ void renderFunc()
 		renderCube();
 	}
 
-	// ---------- POST PROCESSING ----------
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA); 
-	glBlendColor(0.5f, 0.5f, 0.5f, 0.6); 
-	glBlendEquation(GL_FUNC_ADD);
+	// Post-process pass
+	glDisable(GL_CULL_FACE);
+	glDisable(GL_DEPTH_TEST);
+	// first do horizontal blur and store in fboVertical
+	glBindFramebuffer(GL_FRAMEBUFFER, fboVertical.idFbo);
 
-	// llamar al default framebuffer para pintar el postproceso
+	postProcessShader.Use();
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, fboHorizontal.idColorBuffer);
+	glUniform1i(postProcessShader.GetUniformLocation("colorTex"), 0);
+	glUniform1i(postProcessShader.GetUniformLocation("horizontal"), GL_TRUE);
+
+	
+	glBindVertexArray(planeVAO);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	// next do vertical blur and render to screen
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, fbo.idColorBuffer);
+	glBindTexture(GL_TEXTURE_2D, fboVertical.idColorBuffer);
 	glUniform1i(postProcessShader.GetUniformLocation("colorTex"), 0);
 
-	// pintar quad
-	postProcessShader.Use();
-	glDisable(GL_CULL_FACE);
-	glDisable(GL_DEPTH_TEST);
+	glUniform1i(postProcessShader.GetUniformLocation("horizontal"), GL_FALSE);
+
+	
 	glBindVertexArray(planeVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
-
-	glDisable(GL_BLEND);
-
 
 	glutSwapBuffers();
 }
@@ -395,7 +410,8 @@ void resizeFunc(int width, int height)
 	glViewport(0, 0, width, height);
 	proj = glm::perspective(glm::radians(60.0f), float(width) / float(height), 1.0f, 50.0f);
 
-	fbo.Resize(width, height);
+	fboHorizontal.Resize(width, height, false, false);
+	fboVertical.Resize(width, height, false, false);
 	glutPostRedisplay();
 }
 
@@ -438,12 +454,12 @@ void keyboardFunc(unsigned char key, int x, int y) {
 	// motion blur intensity control
 	if (key == '+') {
 		motionBlurIntensity += 0.1f;
-		if (motionBlurIntensity > 1.0f) motionBlurIntensity = 1.0f;
+		if (motionBlurIntensity > 0.9f) motionBlurIntensity = 0.9f;
 		std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
 	}
 	if (key == '-') {
 		motionBlurIntensity -= 0.1f;
-		if (motionBlurIntensity < 0.0f) motionBlurIntensity = 0.0f;
+		if (motionBlurIntensity < 0.1f) motionBlurIntensity = 0.1f;
 		std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
 	}
 }
