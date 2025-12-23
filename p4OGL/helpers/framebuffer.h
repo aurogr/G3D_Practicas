@@ -13,5 +13,4 @@ class FrameBuffer
         void Init();
         void Resize(unsigned int w, unsigned int h);
         void Destroy();   
-        void GetUniformLocation(char const* uniformName); 
 };
