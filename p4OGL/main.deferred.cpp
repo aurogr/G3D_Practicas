@@ -108,13 +108,13 @@ int main(int argc, char **argv)
 
 	// Geometry shader program
 	char const* dsGeomAttribs[] = { "inPos", "inColor", "inNormal", "inTexCoord", nullptr};
-	std::string dsGeomVShaderPath = std::string(SHADERS_PATH) + "/deferred.Geometry.vert";
-	std::string dsGeomFShaderPath = std::string(SHADERS_PATH) + "/deferred.Geometry.frag";
+	std::string dsGeomVShaderPath = std::string(SHADERS_PATH) + "/deferred.geom.vert";
+	std::string dsGeomFShaderPath = std::string(SHADERS_PATH) + "/deferred.geom.frag";
 	dsGeomShader.Init(dsGeomVShaderPath.c_str(), dsGeomFShaderPath.c_str(), dsGeomAttribs);
 	// Lighting shader program
 	char const* dsLightAttribs[] = { "inPos", nullptr};
-	std::string dsLightVShaderPath = std::string(SHADERS_PATH) + "/deferred.Lighting.vert";
-	std::string dsLightFShaderPath = std::string(SHADERS_PATH) + "/deferred.Lighting.frag";
+	std::string dsLightVShaderPath = std::string(SHADERS_PATH) + "/deferred.light.vert";
+	std::string dsLightFShaderPath = std::string(SHADERS_PATH) + "/deferred.light.frag";
 	dsLightShader.Init(dsLightVShaderPath.c_str(), dsLightFShaderPath.c_str(), dsLightAttribs);
 	
 	initObj();

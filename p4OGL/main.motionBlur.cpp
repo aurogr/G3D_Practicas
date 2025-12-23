@@ -89,7 +89,7 @@ unsigned int loadTex(const char *fileName);
 FrameBuffer fbo;
 ShaderProgram forwardShader;
 ShaderProgram postProcessShader;
-float motionBlurIntensity = 0.5f;
+float motionBlurIntensity = 0.6f;
 
 // camera variables
 glm::vec3 COP = glm::vec3(0.0f, 0.0f, 25.0f); // COP is the camera position
@@ -117,13 +117,13 @@ int main(int argc, char **argv)
 	
 	// Forward shader program
 	char const* forwardAttribs[] = { "inPos", "inColor", "inNormal", "inTexCoord", nullptr};
-	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.v0.vert";
-	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.v0.frag";
+	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.motionBlur.vert";
+	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.motionBlur.frag";
 	forwardShader.Init(forwardVShaderPath.c_str(), forwardFShaderPath.c_str(), forwardAttribs);
 	// Post-process shader program
 	char const* postProcessAttribs[] = { "inPos", nullptr};
-	std::string postProcessVShaderPath = std::string(SHADERS_PATH) + "/postProcessing.v0.vert";
-	std::string postProcessFShaderPath = std::string(SHADERS_PATH) + "/postProcessing.v0.frag";
+	std::string postProcessVShaderPath = std::string(SHADERS_PATH) + "/postProcessing.motionBlur.vert";
+	std::string postProcessFShaderPath = std::string(SHADERS_PATH) + "/postProcessing.motionBlur.frag";
 	postProcessShader.Init(postProcessVShaderPath.c_str(), postProcessFShaderPath.c_str(), postProcessAttribs);
 
 	initObj();

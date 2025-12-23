@@ -15,6 +15,7 @@
 
 #include <iostream>
 #include <cstdlib>
+#include <vector>
 
 #include "helpers\framebuffer.h"
 #include "helpers\framebuffer.cpp"
@@ -100,11 +101,23 @@ glm::vec3 vUp = glm::vec3(0.0f, 1.0f, 0.0f); // camera's up vector
 const float cameraMovementSpeed = 0.5f;
 const float cameraRotationSpeed = glm::radians(5.0f);
 float previousTime = 0.0f;
+float nearPlane = 1.0f;
+float farPlane = 50.0f;
+
+// CONVOLUTION MASKS
+struct ConvolutionMask {
+	int size;
+	std::vector<glm::vec2> texIdx;
+	std::vector<float> mask;
+};
+
+std::vector<ConvolutionMask> cMasks;
+unsigned int mask = 0; // idx mask in use
 //////////////////////////////////////////////////////////////
 // New auxiliar functions
 //////////////////////////////////////////////////////////////
 void setViewMatGivenLookAtAndUp();
-
+void initConvMasks();
 //////////////////////////////////////////////////////////////
 
 int main(int argc, char **argv)
@@ -114,25 +127,28 @@ int main(int argc, char **argv)
 	std::cout << "Press 'wasd' (minus) to move camera. Press 'q' or 'e' to rotate it." << std::endl;
 	std::cout << "Press '1' to select Focal Distance for modification. Press '+/-' to adjust." << std::endl;
 	std::cout << "Press '2' to select Max Distance Factor for modification. Press '+/-' to adjust." << std::endl;
-
+	std::cout << "Press 'c' or 'C' to change convolution mask." << std::endl;
 	initContext(argc, argv);
 	initOGL();
 	
 	// Forward shader program
 	char const* forwardAttribs[] = { "inPos", "inColor", "inNormal", "inTexCoord", nullptr};
-	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.v1.vert";
-	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.v1.frag";
+	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.dof.vert";
+	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.dof.frag";
 	forwardShader.Init(forwardVShaderPath.c_str(), forwardFShaderPath.c_str(), forwardAttribs);
 	// Post-process shader program
 	char const* postProcessAttribs[] = { "inPos", nullptr};
-	std::string postProcessVShaderPath = std::string(SHADERS_PATH) + "/postProcessing.v2.vert";
-	std::string postProcessFShaderPath = std::string(SHADERS_PATH) + "/postProcessing.v2.frag";
+	std::string postProcessVShaderPath = std::string(SHADERS_PATH) + "/postProcessing.dof.vert";
+	std::string postProcessFShaderPath = std::string(SHADERS_PATH) + "/postProcessing.dof.frag";
 	postProcessShader.Init(postProcessVShaderPath.c_str(), postProcessFShaderPath.c_str(), postProcessAttribs);
 
 	initObj();
 	initPlane();
+	
+	initConvMasks();
+
 	fbo.Init();
-	fbo.Resize(SCREEN_SIZE, true, true);
+	fbo.Resize(SCREEN_SIZE, true, false);
 
 	glutMainLoop();
 
@@ -183,7 +199,7 @@ void initOGL()
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	glEnable(GL_CULL_FACE);
 
-	proj = glm::perspective(glm::radians(60.0f), 1.0f, 1.0f, 50.0f);
+	proj = glm::perspective(glm::radians(60.0f), 1.0f, nearPlane, farPlane);
 	view = glm::mat4(1.0f);
 	setViewMatGivenLookAtAndUp();
 }
@@ -363,11 +379,18 @@ void renderFunc()
 	glUniform1i(postProcessShader.GetUniformLocation("colorTex"), 0);
 
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, fbo.idVertexBuffer);
-	glUniform1i(postProcessShader.GetUniformLocation("vertexTex"), 1);
+	glBindTexture(GL_TEXTURE_2D, fbo.idDepthBuffer);
+	glUniform1i(postProcessShader.GetUniformLocation("depthTex"), 1);
 
 	glUniform1f(postProcessShader.GetUniformLocation("focalDistance"), focalDistance);
 	glUniform1f(postProcessShader.GetUniformLocation("maxDistanceFactor"), maxDistanceFactor);
+	glUniform1f(postProcessShader.GetUniformLocation("near"), nearPlane);
+	glUniform1f(postProcessShader.GetUniformLocation("far"), farPlane);
+	
+	// Convolution Mask assignment
+	glUniform1i(postProcessShader.GetUniformLocation("convMaskSize"), cMasks[mask].size);
+	glUniform1fv(postProcessShader.GetUniformLocation("convMask"), cMasks[mask].mask.size(), cMasks[mask].mask.data());
+	glUniform2fv(postProcessShader.GetUniformLocation("convTexId"), cMasks[mask].texIdx.size(), (GLfloat *)cMasks[mask].texIdx.data());
 
 	glBindVertexArray(planeVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -419,6 +442,11 @@ void idleFunc()
 }
 
 void keyboardFunc(unsigned char key, int x, int y) {
+	if (key == 'c' || key == 'C') {
+		mask += 1;
+		if (mask >= cMasks.size()) mask = 0;
+		std::cout << "Conv mask: " << mask << std::endl;
+	}
 	// camera movement
 	if (key == 'w')
 		COP += lookAt * cameraMovementSpeed;
@@ -482,4 +510,60 @@ void setViewMatGivenLookAtAndUp(){
 
 	glm::mat4 cameraView = glm::mat4(glm::vec4(u, 0), glm::vec4(v, 0), glm::vec4(n, 0), glm::vec4(COP, 1));
 	view = glm::inverse(cameraView);
+}
+
+void initConvMasks() 
+{
+	// 3x3
+	ConvolutionMask mask3x3;
+	mask3x3.size = 9;
+	float factor = float(1.0 / 14.0);
+	mask3x3.mask = {
+		1.0f * factor, 2.0f * factor, 1.0f * factor,
+		2.0f * factor, 2.0f * factor, 2.0f * factor,
+		1.0f * factor, 2.0f * factor, 1.0f * factor
+	};
+	mask3x3.texIdx = {
+		glm::vec2(-1.0f,  1.0f), glm::vec2(0.0f,  1.0f), glm::vec2(1.0f,  1.0f),
+		glm::vec2(-1.0f,  0.0f), glm::vec2(0.0f,  0.0f), glm::vec2(1.0f,  0.0f),
+		glm::vec2(-1.0f, -1.0f), glm::vec2(0.0f, -1.0f), glm::vec2(1.0f, -1.0f)
+	};
+	cMasks.push_back(mask3x3);
+
+	// 5x5
+	ConvolutionMask mask5x5;
+	mask5x5.size = 25;
+	factor = 1.0f / 65.0f;
+	mask5x5.mask = {
+		1.0f * factor, 2.0f * factor, 3.0f * factor, 2.0f * factor, 1.0f * factor,
+		2.0f * factor, 3.0f * factor, 4.0f * factor, 3.0f * factor, 2.0f * factor,
+		3.0f * factor, 4.0f * factor, 5.0f * factor, 4.0f * factor, 3.0f * factor,
+		2.0f * factor, 3.0f * factor, 4.0f * factor, 3.0f * factor, 2.0f * factor,
+		1.0f * factor, 2.0f * factor, 3.0f * factor, 2.0f * factor, 1.0f * factor
+	};
+	mask5x5.texIdx = {
+
+		glm::vec2(-2.0, 2.0), glm::vec2(-1.0, 2.0), glm::vec2(0.0, 2.0), glm::vec2(1.0, 2.0), glm::vec2(2.0, 2.0),
+		glm::vec2(-2.0, 1.0), glm::vec2(-1.0, 1.0), glm::vec2(0.0, 1.0), glm::vec2(1.0, 1.0), glm::vec2(2.0, 1.0),
+		glm::vec2(-2.0, 0.0), glm::vec2(-1.0, 0.0), glm::vec2(0.0, 0.0), glm::vec2(1.0, 0.0), glm::vec2(2.0, 0.0),
+		glm::vec2(-2.0, -1.0), glm::vec2(-1.0, -1.0), glm::vec2(0.0, -1.0), glm::vec2(1.0, -1.0), glm::vec2(2.0, -1.0),
+		glm::vec2(-2.0, -2.0), glm::vec2(-1.0, -2.0), glm::vec2(0.0, -2.0), glm::vec2(1.0, -2.0), glm::vec2(2.0, -2.0)
+	};
+	cMasks.push_back(mask5x5);
+
+	// 3x3
+	ConvolutionMask maskSharpen;
+	maskSharpen.size = 9;
+	factor = float(1.0/ 2.0);
+	maskSharpen.mask = {
+		0.0f * factor, -1.0f * factor, 0.0f * factor,
+		-1.0f * factor, 5.0f * factor, -1.0f * factor,
+		0.0f * factor, -1.0f * factor, 0.0f * factor
+	};
+	maskSharpen.texIdx = {
+		glm::vec2(-1.0f,  1.0f), glm::vec2(0.0f,  1.0f), glm::vec2(1.0f,  1.0f),
+		glm::vec2(-1.0f,  0.0f), glm::vec2(0.0f,  0.0f), glm::vec2(1.0f,  0.0f),
+		glm::vec2(-1.0f, -1.0f), glm::vec2(0.0f, -1.0f), glm::vec2(1.0f, -1.0f)
+	};
+	cMasks.push_back(maskSharpen);
 }

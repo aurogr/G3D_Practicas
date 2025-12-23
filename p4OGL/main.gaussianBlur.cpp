@@ -88,7 +88,6 @@ FrameBuffer fboHorizontal;
 FrameBuffer fboVertical;
 ShaderProgram forwardShader;
 ShaderProgram postProcessShader;
-float motionBlurIntensity = 0.5f;
 
 // camera variables
 glm::vec3 COP = glm::vec3(0.0f, 0.0f, 25.0f); // COP is the camera position
@@ -116,8 +115,8 @@ int main(int argc, char **argv)
 	
 	// Forward shader program
 	char const* forwardAttribs[] = { "inPos", "inColor", "inNormal", "inTexCoord", nullptr};
-	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.v1.vert";
-	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.v1.frag";
+	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.gaussianBlur.vert";
+	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.gaussianBlur.frag";
 	forwardShader.Init(forwardVShaderPath.c_str(), forwardFShaderPath.c_str(), forwardAttribs);
 		std::cout << "here." << std::endl;
 	// Post-process shader program
@@ -450,18 +449,6 @@ void keyboardFunc(unsigned char key, int x, int y) {
 		lookAt = glm::vec3(glm::rotate(glm::mat4(1.0f), cameraRotationSpeed, glm::vec3(0.0f, 1.0f, 0.0f)) * glm::vec4(lookAt, 0.0f));
 
 	setViewMatGivenLookAtAndUp();
-
-	// motion blur intensity control
-	if (key == '+') {
-		motionBlurIntensity += 0.1f;
-		if (motionBlurIntensity > 0.9f) motionBlurIntensity = 0.9f;
-		std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
-	}
-	if (key == '-') {
-		motionBlurIntensity -= 0.1f;
-		if (motionBlurIntensity < 0.1f) motionBlurIntensity = 0.1f;
-		std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
-	}
 }
 
 void mouseFunc(int button, int state, int x, int y) {}
