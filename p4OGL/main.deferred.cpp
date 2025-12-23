@@ -79,13 +79,8 @@ void initFBO();
 void resizeFBO(unsigned int w, unsigned int h);
 void destroy();
 
-// Load the specified shader & return shader ID
-// TO BE IMPLEMENTED
-GLuint loadShader(const char *fileName, GLenum type);
-
 // Texture creation, configuration and upload to OpenGL
 // Return texture ID
-// TO BE IMPLEMENTED
 unsigned int loadTex(const char *fileName);
 
 //////////////////////////////////////////////////////////////
@@ -94,15 +89,26 @@ unsigned int loadTex(const char *fileName);
 GBuffer gBuffer;
 ShaderProgram dsGeomShader;
 ShaderProgram dsLightShader;
+
+// camera variables
+glm::vec3 COP = glm::vec3(0.0f, 0.0f, 25.0f); // COP is the camera position
+glm::vec3 lookAt = glm::vec3(0.0f, 0.0f, -1.0f); // camera orientation
+glm::vec3 vUp = glm::vec3(0.0f, 1.0f, 0.0f); // camera's up vector
+const float cameraMovementSpeed = 0.5f;
+const float cameraRotationSpeed = glm::radians(5.0f);
+float previousTime = 0.0f;
+float nearPlane = 1.0f;
+float farPlane = 50.0f;
 //////////////////////////////////////////////////////////////
 // New auxiliar functions
 //////////////////////////////////////////////////////////////
-// TO BE IMPLEMENTED
+void setViewMatGivenLookAtAndUp();
 
 int main(int argc, char **argv)
 {
 	std::locale::global(std::locale("spanish")); // acentos ;)
 
+	std::cout << "Press 'wasd' (minus) to move camera. Press 'q' or 'e' to rotate it." << std::endl;
 	initContext(argc, argv);
 	initOGL();
 
@@ -119,6 +125,7 @@ int main(int argc, char **argv)
 	
 	initObj();
 	initPlane();
+
 	gBuffer.Init();
 	gBuffer.Resize(SCREEN_SIZE);
 
@@ -165,7 +172,6 @@ void initContext(int argc, char **argv)
 void initOGL()
 {
 	glEnable(GL_DEPTH_TEST);
-	glClearColor(0.2f, 0.2f, 0.2f, 0.0f);
 
 	glFrontFace(GL_CCW);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -173,7 +179,7 @@ void initOGL()
 
 	proj = glm::perspective(glm::radians(60.0f), 1.0f, 1.0f, 50.0f);
 	view = glm::mat4(1.0f);
-	view[3].z = -25.0f;
+	setViewMatGivenLookAtAndUp();
 }
 
 void destroy()
@@ -294,7 +300,7 @@ void renderFunc()
 {
 	// ---------- GEOMETRY PASS ----------
 	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer.gFbo);
-	glClearColor(0.2f, 0.2f, 0.2f, 0.0f);
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     dsGeomShader.Use();
@@ -364,8 +370,6 @@ void renderFunc()
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);
 
-	// send light uniforms
-	// ....
 
 	// render plane
 	glBindVertexArray(planeVAO);
@@ -403,10 +407,47 @@ void resizeFunc(int width, int height)
 
 void idleFunc()
 {
-	angle = (angle > PI * 2.0f) ? 0 : angle + 0.0002f;
+	// frame rate control
+    float currentTime = (float)glutGet(GLUT_ELAPSED_TIME) / 1000.0f;  // Get elapsed time in seconds
+    float deltaTime = currentTime - previousTime;
+    if (deltaTime > 0.0f) {
+		angle += 1.5f * deltaTime;
+		if (angle > PI * 2.0f) {
+			angle -= PI * 2.0f;
+		}
+
+		previousTime = currentTime;
+	}
 
 	glutPostRedisplay();
 }
 
-void keyboardFunc(unsigned char key, int x, int y) {}
+void keyboardFunc(unsigned char key, int x, int y) {
+	// camera movement
+	if (key == 'w')
+		COP += lookAt * cameraMovementSpeed;
+	else if (key == 's')
+		COP -= lookAt * cameraMovementSpeed;
+
+	if (key == 'd')
+		COP += glm::normalize(glm::cross(lookAt, vUp)) * cameraMovementSpeed;
+	else if (key == 'a')
+		COP -= glm::normalize(glm::cross(lookAt, vUp)) * cameraMovementSpeed;
+
+	if (key == 'e')
+		lookAt = glm::vec3(glm::rotate(glm::mat4(1.0f), -cameraRotationSpeed, glm::vec3(0.0f, 1.0f, 0.0f)) * glm::vec4(lookAt, 0.0f));
+	else if (key == 'q')
+		lookAt = glm::vec3(glm::rotate(glm::mat4(1.0f), cameraRotationSpeed, glm::vec3(0.0f, 1.0f, 0.0f)) * glm::vec4(lookAt, 0.0f));
+
+	setViewMatGivenLookAtAndUp();
+	
+}
 void mouseFunc(int button, int state, int x, int y) {}
+void setViewMatGivenLookAtAndUp(){
+	glm::vec3 n = -glm::normalize(lookAt);
+	glm::vec3 v = glm::normalize(vUp - (n * vUp) * n);
+	glm::vec3 u = glm::cross(v, n);
+
+	glm::mat4 cameraView = glm::mat4(glm::vec4(u, 0), glm::vec4(v, 0), glm::vec4(n, 0), glm::vec4(COP, 1));
+	view = glm::inverse(cameraView);
+}
