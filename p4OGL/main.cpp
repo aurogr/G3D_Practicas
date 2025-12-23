@@ -1,5 +1,5 @@
 ﻿/////////////////////////////////////////////////////////////
-/////////////////// DEPTH OF FIELD VERSION //////////////////
+/////////////////// MIXED POST-PROCESSING ///////////////////
 /////////////////////////////////////////////////////////////
 #include <IGL/BOX.h>
 #include <IGL/PLANE.h>
@@ -87,9 +87,14 @@ unsigned int loadTex(const char *fileName);
 //////////////////////////////////////////////////////////////
 // New auxiliar variables
 //////////////////////////////////////////////////////////////
-FrameBuffer fbo;
+FrameBuffer fboMainRender;
+FrameBuffer fboGBHoz;
+FrameBuffer fboGBVert;
+FrameBuffer fboDOF;
 ShaderProgram forwardShader;
-ShaderProgram postProcessShader;
+ShaderProgram ppShaderMB;
+ShaderProgram ppShaderGB;
+ShaderProgram ppShaderDOF;
 char selectedKey = '1'; // '1' for focal distance, '2' for max distance factor
 float focalDistance = -25.0f; // focal distance
 float maxDistanceFactor = 1.0/5.0; // maximum blur distance factor
@@ -141,15 +146,28 @@ int main(int argc, char **argv)
 	char const* postProcessAttribs[] = { "inPos", nullptr};
 	std::string postProcessVShaderPath = std::string(SHADERS_PATH) + "/postProcessing.dof.vert";
 	std::string postProcessFShaderPath = std::string(SHADERS_PATH) + "/postProcessing.dof.frag";
-	postProcessShader.Init(postProcessVShaderPath.c_str(), postProcessFShaderPath.c_str(), postProcessAttribs);
+	ppShaderDOF.Init(postProcessVShaderPath.c_str(), postProcessFShaderPath.c_str(), postProcessAttribs);
+	postProcessVShaderPath = std::string(SHADERS_PATH) + "/postProcessing.gaussianBlur.vert";
+	postProcessFShaderPath = std::string(SHADERS_PATH) + "/postProcessing.gaussianBlur.frag";
+	ppShaderGB.Init(postProcessVShaderPath.c_str(), postProcessFShaderPath.c_str(), postProcessAttribs);
+	postProcessVShaderPath = std::string(SHADERS_PATH) + "/postProcessing.motionBlur.vert";
+	postProcessFShaderPath = std::string(SHADERS_PATH) + "/postProcessing.motionBlur.frag";
+	ppShaderMB.Init(postProcessVShaderPath.c_str(), postProcessFShaderPath.c_str(), postProcessAttribs);
 
 	initObj();
 	initPlane();
 	
 	initConvMasks();
 
-	fbo.Init();
-	fbo.Resize(SCREEN_SIZE, true, false);
+	fboMainRender.Init();
+	fboGBHoz.Init();
+	fboGBVert.Init();
+	fboDOF.Init();
+
+	fboMainRender.Resize(SCREEN_SIZE, false, false);
+	fboGBHoz.Resize(SCREEN_SIZE, false, false);
+	fboGBVert.Resize(SCREEN_SIZE, false, false);
+	fboDOF.Resize(SCREEN_SIZE, true, false);
 
 	glutMainLoop();
 
@@ -224,7 +242,10 @@ void destroy()
 	glDeleteTextures(1, &specularTexId);
 	glDeleteTextures(1, &emiTexId);
 
-	fbo.Destroy();
+	fboDOF.Destroy();
+	fboGBHoz.Destroy();
+	fboGBVert.Destroy();
+	fboMainRender.Destroy();
 }
 
 void initObj()
@@ -276,7 +297,7 @@ void initObj()
 	emiTexId = loadTex(emissiveTexPath.c_str());
 }
 
-void initPlane() 
+void initPlane(ShaderProgram& postProcessShader) 
 {
 	glGenVertexArrays(1, &planeVAO);
 	glBindVertexArray(planeVAO);
@@ -320,7 +341,7 @@ unsigned int loadTex(const char *fileName)
 
 void renderFunc()
 {
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo.idFbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fboMainRender.idFbo);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -372,20 +393,58 @@ void renderFunc()
 	glDisable(GL_DEPTH_TEST);
 
 	// 1. Gaussian blur
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	postProcessShader.Use();
-	// Convolution Mask assignment
+
+	// first do horizontal blur and store in fboVertical
+	glBindFramebuffer(GL_FRAMEBUFFER, fboGBHoz.idFbo);
+	ppShaderGB.Use();
+
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, fbo.idColorBuffer);
-	glUniform1i(postProcessShader.GetUniformLocation("colorTex"), 0);
+	glBindTexture(GL_TEXTURE_2D, fboMainRender.idColorBuffer);
+	glUniform1i(ppShaderGB.GetUniformLocation("colorTex"), 0);
+	glUniform1i(ppShaderGB.GetUniformLocation("horizontal"), GL_TRUE);
+
+	
+	glBindVertexArray(planeVAO);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	// next do vertical blur and render to screen
+	glBindFramebuffer(GL_FRAMEBUFFER, fboGBVert.idFbo);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, fboGBHoz.idColorBuffer);
+	glUniform1i(ppShaderGB.GetUniformLocation("colorTex"), 0);
+	glUniform1i(ppShaderGB.GetUniformLocation("horizontal"), GL_FALSE);
+
+	
+	glBindVertexArray(planeVAO);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	glEnable(GL_CULL_FACE);
+	glEnable(GL_DEPTH_TEST);
+
+	// 3. Depth of Field
+	glBindFramebuffer(GL_FRAMEBUFFER, fboDOF.idFbo);
+	ppShaderDOF.Use();
+
+	glDisable(GL_CULL_FACE);
+	glDisable(GL_DEPTH_TEST);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, fboGBVert.idColorBuffer);
+	glUniform1i(ppShaderDOF.GetUniformLocation("colorTex"), 0);
 
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, fbo.idDepthBuffer);
-	glUniform1i(postProcessShader.GetUniformLocation("depthTex"), 1);
+	glBindTexture(GL_TEXTURE_2D, fboGBVert.idDepthBuffer);
+	glUniform1i(ppShaderDOF.GetUniformLocation("depthTex"), 1);
 
-	glUniform1i(postProcessShader.GetUniformLocation("convMaskSize"), cMasks[mask].size);
-	glUniform1fv(postProcessShader.GetUniformLocation("convMask"), cMasks[mask].mask.size(), cMasks[mask].mask.data());
-	glUniform2fv(postProcessShader.GetUniformLocation("convTexId"), cMasks[mask].texIdx.size(), (GLfloat *)cMasks[mask].texIdx.data());
+	glUniform1f(ppShaderDOF.GetUniformLocation("focalDistance"), focalDistance);
+	glUniform1f(ppShaderDOF.GetUniformLocation("maxDistanceFactor"), maxDistanceFactor);
+	glUniform1f(ppShaderDOF.GetUniformLocation("near"), nearPlane);
+	glUniform1f(ppShaderDOF.GetUniformLocation("far"), farPlane);
+	
+	// Convolution Mask assignment
+	glUniform1i(ppShaderDOF.GetUniformLocation("convMaskSize"), cMasks[mask].size);
+	glUniform1fv(ppShaderDOF.GetUniformLocation("convMask"), cMasks[mask].mask.size(), cMasks[mask].mask.data());
+	glUniform2fv(ppShaderDOF.GetUniformLocation("convTexId"), cMasks[mask].texIdx.size(), (GLfloat *)cMasks[mask].texIdx.data());
 
 	glBindVertexArray(planeVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -405,17 +464,6 @@ void renderFunc()
 
 	glDisable(GL_BLEND);
 	
-	// 3. Depth of Field
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	glUniform1f(postProcessShader.GetUniformLocation("focalDistance"), focalDistance);
-	glUniform1f(postProcessShader.GetUniformLocation("maxDistanceFactor"), maxDistanceFactor);
-	glUniform1f(postProcessShader.GetUniformLocation("near"), nearPlane);
-	glUniform1f(postProcessShader.GetUniformLocation("far"), farPlane);
-
-	glBindVertexArray(planeVAO);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
 
@@ -441,7 +489,11 @@ void resizeFunc(int width, int height)
 	glViewport(0, 0, width, height);
 	proj = glm::perspective(glm::radians(60.0f), float(width) / float(height), 1.0f, 50.0f);
 
-	fbo.Resize(width, height, true, true);
+	fboMainRender.Resize(SCREEN_SIZE, false, false);
+	fboGBHoz.Resize(SCREEN_SIZE, false, false);
+	fboGBVert.Resize(SCREEN_SIZE, false, false);
+	fboDOF.Resize(SCREEN_SIZE, true, false);
+
 	glutPostRedisplay();
 }
 
@@ -493,6 +545,11 @@ void keyboardFunc(unsigned char key, int x, int y) {
 		selectedKey = '2';
 		std::cout << "Max Distance Factor selected for modification. Press +/- to adjust." << std::endl;
 	}
+	else if (key == '3')
+	{
+		selectedKey = '3';
+		std::cout << "Motion Blur Intensity selected for modification. Press +/- to adjust." << std::endl;
+	}
 
 	setViewMatGivenLookAtAndUp();
 
@@ -518,20 +575,21 @@ void keyboardFunc(unsigned char key, int x, int y) {
 				maxDistanceFactor = 0.01f;
 			std::cout << "Max Distance Factor: " << maxDistanceFactor << std::endl;
 		}
-	}
-
-	// motion blur intensity control
-	if (key == '+') {
-		motionBlurIntensity += 0.1f;
-		if (motionBlurIntensity > 0.9f) motionBlurIntensity = 0.9f;
-		std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
-	}
-	if (key == '-') {
-		motionBlurIntensity -= 0.1f;
-		if (motionBlurIntensity < 0.1f) motionBlurIntensity = 0.1f;
-		std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
-	}
-	
+	} else if (selectedKey == '3') 
+	{
+		if (key == '+') {
+			motionBlurIntensity += 0.05f;
+			if (motionBlurIntensity > 1.0f)
+				motionBlurIntensity = 1.0f;
+			std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
+		}
+		if (key == '-') {
+			motionBlurIntensity -= 0.05f;
+			if (motionBlurIntensity < 0.0f)
+				motionBlurIntensity = 0.0f;
+			std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
+		}
+	}	
 }
 
 void mouseFunc(int button, int state, int x, int y) {}

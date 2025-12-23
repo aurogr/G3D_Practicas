@@ -35,14 +35,12 @@ void main()
 			vec2 iidx = texCoord + vec2(ts.x * texIdx[i].x, 0.0);
 			color += texture(colorTex, iidx) * mask[i];
 		}
-		//color = vec4(1.0, 0.0, 0.0, 1.0); // Debug: show red for horizontal pass
 	} else {
 		for (uint i = 0u; i < MASK_SIZE; i++)
 		{
 			vec2 iidx = texCoord + vec2(0.0, ts.y * texIdx[i].y);
 			color += texture(colorTex, iidx) * mask[i];
 		}
-		//color = vec4(0.0, 0.0, 1.0, 1.0); // Debug: show blue for vertical pass
 	}
 
 	outColor = vec4(color.rgb, 1.0);
