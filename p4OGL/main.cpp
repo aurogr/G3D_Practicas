@@ -15,6 +15,7 @@
 
 #include <iostream>
 #include <cstdlib>
+#include <vector>
 
 #define PI 3.141592f
 #define RAND_SEED 31415926
@@ -78,8 +79,7 @@ int uColorTex;
 int uSpecularTex;
 int uEmiTex;
 unsigned int uColorTexPP;
-unsigned int uVertexTexPP;
-unsigned int vertexBuffTexId;
+unsigned int uDepthTexPP;
 
 // Attributes
 int inPos;
@@ -124,11 +124,21 @@ unsigned int loadTex(const char *fileName);
 //////////////////////////////////////////////////////////////
 // New auxiliar variables
 //////////////////////////////////////////////////////////////
+ 
+// CONVOLUTION MASKS
+struct ConvolutionMask {
+	int size;
+	std::vector<glm::vec2> texIdx;
+	std::vector<float> mask;
+};
+
+std::vector<ConvolutionMask> cMasks;
+unsigned int mask = 0; // idx mask in use
 
 //////////////////////////////////////////////////////////////
 // New auxiliar functions
 //////////////////////////////////////////////////////////////
-// TO BE IMPLEMENTED
+void initConvMasks();
 
 int main(int argc, char **argv)
 {
@@ -144,6 +154,7 @@ int main(int argc, char **argv)
 	initShaderPP(vertexShader.c_str(), fragmentShader.c_str());
 	initObj();
 	initPlane();
+	initConvMasks();
 	initFBO();
 	resizeFBO(SCREEN_SIZE);
 
@@ -234,7 +245,6 @@ void destroy()
 	glDeleteTextures(1, &colorBuffTexId);
 	glDeleteTextures(1, &depthBuffTexId);
 
-	glDeleteTextures(1, &vertexBuffTexId);
 	glDeleteTextures(1, &colorTexId);
 	glDeleteTextures(1, &specularTexId);
 	glDeleteTextures(1, &emiTexId);
@@ -320,7 +330,11 @@ void initShaderPP(const char* vname, const char* fname)
 
 	uColorTexPP = glGetUniformLocation(postProcessProgram, "colorTex");
 	inPosPP = glGetAttribLocation(postProcessProgram, "inPos");
-	uVertexTexPP = glGetUniformLocation(postProcessProgram, "vertexTex");
+	uDepthTexPP = glGetUniformLocation(postProcessProgram, "depthTex");
+
+	glGetUniformLocation(postProcessProgram, "convMask");
+	glGetUniformLocation(postProcessProgram, "convMaskSize");
+	glGetUniformLocation(postProcessProgram, "convTexId");
 }
 
 void initObj()
@@ -402,7 +416,6 @@ void initFBO()
 	glGenFramebuffers(1, &fbo);
 	glGenTextures(1, &colorBuffTexId);
 	glGenTextures(1, &depthBuffTexId);
-	glGenTextures(1, &vertexBuffTexId);
 }
 
 void resizeFBO(unsigned int w, unsigned int h) 
@@ -419,16 +432,9 @@ void resizeFBO(unsigned int w, unsigned int h)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-	glBindTexture(GL_TEXTURE_2D, vertexBuffTexId);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, w, h, 0,
-		GL_RGBA, GL_UNSIGNED_BYTE, 0);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffTexId, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBuffTexId, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, vertexBuffTexId, 0);
 	
 	const GLenum buffs[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
 	glDrawBuffers(2, buffs);
@@ -574,12 +580,16 @@ void renderFunc()
 		glBindTexture(GL_TEXTURE_2D, colorBuffTexId);
 		glUniform1i(uColorTexPP, 0);
 	}
-	if (uVertexTexPP != -1)
-	{
+	if (uDepthTexPP != -1) {
 		glActiveTexture(GL_TEXTURE0 + 1);
-		glBindTexture(GL_TEXTURE_2D, vertexBuffTexId);
-		glUniform1i(uVertexTexPP, 1);
-	}	
+		glBindTexture(GL_TEXTURE_2D, depthBuffTexId);
+		glUniform1i(uDepthTexPP, 1);
+	}
+	
+	// Convolution Mask assignment
+	glUniform1i(glGetUniformLocation(postProcessProgram, "convMaskSize"), cMasks[mask].size);
+	glUniform1fv(glGetUniformLocation(postProcessProgram, "convMask"), cMasks[mask].mask.size(), cMasks[mask].mask.data());
+	glUniform2fv(glGetUniformLocation(postProcessProgram, "convMaskIdx"), cMasks[mask].texIdx.size(), &cMasks[mask].texIdx[0].x);
 
 	glBindVertexArray(planeVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -623,5 +633,68 @@ void idleFunc()
 	glutPostRedisplay();
 }
 
-void keyboardFunc(unsigned char key, int x, int y) {}
+void keyboardFunc(unsigned char key, int x, int y) 
+{
+	if (key == 'c' || key == 'C') {
+		mask += 1;
+		if (mask >= cMasks.size()) mask = 0;
+		std::cout << "Conv mask: " << mask << std::endl;
+
+	}
+}
 void mouseFunc(int button, int state, int x, int y) {}
+
+void initConvMasks() 
+{
+	// 3x3
+	ConvolutionMask mask3x3;
+	mask3x3.size = 9;
+	float factor = float(1.0 / 14.0);
+	mask3x3.mask = {
+		1.0f * factor, 2.0f * factor, 1.0f * factor,
+		2.0f * factor, 2.0f * factor, 2.0f * factor,
+		1.0f * factor, 2.0f * factor, 1.0f * factor
+	};
+	mask3x3.texIdx = {
+		glm::vec2(-1.0f,  1.0f), glm::vec2(0.0f,  1.0f), glm::vec2(1.0f,  1.0f),
+		glm::vec2(-1.0f,  0.0f), glm::vec2(0.0f,  0.0f), glm::vec2(1.0f,  0.0f),
+		glm::vec2(-1.0f, -1.0f), glm::vec2(0.0f, -1.0f), glm::vec2(1.0f, -1.0f)
+	};
+	cMasks.push_back(mask3x3);
+
+	// 5x5
+	ConvolutionMask mask5x5;
+	mask5x5.size = 25;
+	factor = 1.0f / 65.0f;
+	mask5x5.mask = {
+		1 * factor, 2 * factor, 3 * factor, 2 * factor, 1 * factor,
+		2 * factor, 3 * factor, 4 * factor, 3 * factor, 2 * factor,
+		3 * factor, 4 * factor, 5 * factor, 4 * factor, 3 * factor,
+		2 * factor, 3 * factor, 4 * factor, 3 * factor, 2 * factor,
+		1 * factor, 2 * factor, 3 * factor, 2 * factor, 1 * factor
+	};
+	mask5x5.texIdx = {
+		glm::vec2(-2, 2), glm::vec2(-1, 2), glm::vec2(0, 2), glm::vec2(1, 2), glm::vec2(2, 2),
+		glm::vec2(-2, 1), glm::vec2(-1, 1), glm::vec2(0, 1), glm::vec2(1, 1), glm::vec2(2, 1),
+		glm::vec2(-2, 0), glm::vec2(-1, 0), glm::vec2(0, 0), glm::vec2(1, 0), glm::vec2(2, 0),
+		glm::vec2(-2, -1), glm::vec2(-1, -1), glm::vec2(0, -1), glm::vec2(1, -1), glm::vec2(2, -1),
+		glm::vec2(-2, -2), glm::vec2(-1, -2), glm::vec2(0, -2), glm::vec2(1, -2), glm::vec2(2, -2)
+	};
+	cMasks.push_back(mask5x5);
+
+	// 3x3
+	ConvolutionMask maskSharpen;
+	maskSharpen.size = 9;
+	factor = float(1.0/ 2.0);
+	maskSharpen.mask = {
+		0.0f * factor, -1.0f * factor, 0.0f * factor,
+		-1.0f * factor, 5.0f * factor, -1.0f * factor,
+		0.0f * factor, -1.0f * factor, 0.0f * factor
+	};
+	maskSharpen.texIdx = {
+		glm::vec2(-1.0f,  1.0f), glm::vec2(0.0f,  1.0f), glm::vec2(1.0f,  1.0f),
+		glm::vec2(-1.0f,  0.0f), glm::vec2(0.0f,  0.0f), glm::vec2(1.0f,  0.0f),
+		glm::vec2(-1.0f, -1.0f), glm::vec2(0.0f, -1.0f), glm::vec2(1.0f, -1.0f)
+	};
+	cMasks.push_back(maskSharpen);
+}
