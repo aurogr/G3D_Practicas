@@ -96,10 +96,22 @@ glm::vec3 vUp = glm::vec3(0.0f, 1.0f, 0.0f); // camera's up vector
 const float cameraMovementSpeed = 0.5f;
 const float cameraRotationSpeed = glm::radians(5.0f);
 float previousTime = 0.0f;
+
+// CONVOLUTION MASKS
+struct ConvolutionMask {
+	int size;
+	std::vector<glm::vec2> texIdx;
+	std::vector<float> mask;
+};
+
+std::vector<ConvolutionMask> cMasks;
+unsigned int mask = 0; // idx mask in use
+
 //////////////////////////////////////////////////////////////
 // New auxiliar functions
 //////////////////////////////////////////////////////////////
 void setViewMatGivenLookAtAndUp();
+void initConvMasks();
 
 //////////////////////////////////////////////////////////////
 
@@ -128,6 +140,8 @@ int main(int argc, char **argv)
 
 	initObj();
 	initPlane();
+
+	initConvMasks();
 
 	fboHorizontal.Init();
 	fboHorizontal.Resize(SCREEN_SIZE, false, false);
@@ -368,6 +382,11 @@ void renderFunc()
 	glUniform1i(postProcessShader.GetUniformLocation("colorTex"), 0);
 	glUniform1i(postProcessShader.GetUniformLocation("horizontal"), GL_TRUE);
 
+		// Convolution Mask assignment
+	glUniform1i(postProcessShader.GetUniformLocation("convMaskSize"), cMasks[mask].size);
+	glUniform1fv(postProcessShader.GetUniformLocation("convMask"), cMasks[mask].mask.size(), cMasks[mask].mask.data());
+	glUniform2fv(postProcessShader.GetUniformLocation("convTexId"), cMasks[mask].texIdx.size(), (GLfloat *)cMasks[mask].texIdx.data());
+
 	
 	glBindVertexArray(planeVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -432,6 +451,11 @@ void idleFunc()
 }
 
 void keyboardFunc(unsigned char key, int x, int y) {
+	if (key == 'c' || key == 'C') {
+		mask += 1;
+		if (mask >= cMasks.size()) mask = 0;
+		std::cout << "Conv mask: " << mask << std::endl;
+	}
 	// camera movement
 	if (key == 'w')
 		COP += lookAt * cameraMovementSpeed;
@@ -460,4 +484,60 @@ void setViewMatGivenLookAtAndUp(){
 
 	glm::mat4 cameraView = glm::mat4(glm::vec4(u, 0), glm::vec4(v, 0), glm::vec4(n, 0), glm::vec4(COP, 1));
 	view = glm::inverse(cameraView);
+}
+
+void initConvMasks() 
+{
+	// 3x3
+	ConvolutionMask mask3x3;
+	mask3x3.size = 9;
+	float factor = float(1.0 / 14.0);
+	mask3x3.mask = {
+		1.0f * factor, 2.0f * factor, 1.0f * factor,
+		2.0f * factor, 2.0f * factor, 2.0f * factor,
+		1.0f * factor, 2.0f * factor, 1.0f * factor
+	};
+	mask3x3.texIdx = {
+		glm::vec2(-1.0f,  1.0f), glm::vec2(0.0f,  1.0f), glm::vec2(1.0f,  1.0f),
+		glm::vec2(-1.0f,  0.0f), glm::vec2(0.0f,  0.0f), glm::vec2(1.0f,  0.0f),
+		glm::vec2(-1.0f, -1.0f), glm::vec2(0.0f, -1.0f), glm::vec2(1.0f, -1.0f)
+	};
+	cMasks.push_back(mask3x3);
+
+	// 5x5
+	ConvolutionMask mask5x5;
+	mask5x5.size = 25;
+	factor = 1.0f / 65.0f;
+	mask5x5.mask = {
+		1.0f * factor, 2.0f * factor, 3.0f * factor, 2.0f * factor, 1.0f * factor,
+		2.0f * factor, 3.0f * factor, 4.0f * factor, 3.0f * factor, 2.0f * factor,
+		3.0f * factor, 4.0f * factor, 5.0f * factor, 4.0f * factor, 3.0f * factor,
+		2.0f * factor, 3.0f * factor, 4.0f * factor, 3.0f * factor, 2.0f * factor,
+		1.0f * factor, 2.0f * factor, 3.0f * factor, 2.0f * factor, 1.0f * factor
+	};
+	mask5x5.texIdx = {
+
+		glm::vec2(-2.0, 2.0), glm::vec2(-1.0, 2.0), glm::vec2(0.0, 2.0), glm::vec2(1.0, 2.0), glm::vec2(2.0, 2.0),
+		glm::vec2(-2.0, 1.0), glm::vec2(-1.0, 1.0), glm::vec2(0.0, 1.0), glm::vec2(1.0, 1.0), glm::vec2(2.0, 1.0),
+		glm::vec2(-2.0, 0.0), glm::vec2(-1.0, 0.0), glm::vec2(0.0, 0.0), glm::vec2(1.0, 0.0), glm::vec2(2.0, 0.0),
+		glm::vec2(-2.0, -1.0), glm::vec2(-1.0, -1.0), glm::vec2(0.0, -1.0), glm::vec2(1.0, -1.0), glm::vec2(2.0, -1.0),
+		glm::vec2(-2.0, -2.0), glm::vec2(-1.0, -2.0), glm::vec2(0.0, -2.0), glm::vec2(1.0, -2.0), glm::vec2(2.0, -2.0)
+	};
+	cMasks.push_back(mask5x5);
+
+	// 3x3
+	ConvolutionMask maskSharpen;
+	maskSharpen.size = 9;
+	factor = float(1.0/ 2.0);
+	maskSharpen.mask = {
+		0.0f * factor, -1.0f * factor, 0.0f * factor,
+		-1.0f * factor, 5.0f * factor, -1.0f * factor,
+		0.0f * factor, -1.0f * factor, 0.0f * factor
+	};
+	maskSharpen.texIdx = {
+		glm::vec2(-1.0f,  1.0f), glm::vec2(0.0f,  1.0f), glm::vec2(1.0f,  1.0f),
+		glm::vec2(-1.0f,  0.0f), glm::vec2(0.0f,  0.0f), glm::vec2(1.0f,  0.0f),
+		glm::vec2(-1.0f, -1.0f), glm::vec2(0.0f, -1.0f), glm::vec2(1.0f, -1.0f)
+	};
+	cMasks.push_back(maskSharpen);
 }
