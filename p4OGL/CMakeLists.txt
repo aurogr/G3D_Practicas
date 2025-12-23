@@ -1,6 +1,6 @@
 project(p4OGL VERSION 1.0.0 LANGUAGES CXX)
 
-set_property(CACHE APP_VERSION PROPERTY STRINGS "" v0 v1 deferred)
+set_property(CACHE APP_VERSION PROPERTY STRINGS "" v0 v1 deferred DOF gaussianBlur motionBlur)
 
 # Decide which main file to use
 if (APP_VERSION STREQUAL "")

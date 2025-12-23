@@ -93,3 +93,11 @@ void ShaderProgram::Destroy(){
 void ShaderProgram::Use(){
 	glUseProgram(program);
 }
+
+GLuint ShaderProgram::GetUniformLocation(char const* uniformName){
+	return glGetUniformLocation(program, uniformName);
+}
+
+GLuint ShaderProgram::GetAttribLocation(char const* attribName){
+	return glGetAttribLocation(program, attribName);
+}

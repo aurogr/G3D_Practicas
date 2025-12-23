@@ -1,5 +1,5 @@
 ﻿/////////////////////////////////////////////////////////////
-/////////////////// DEFERRED VERSION ////////////////////////
+/////////////////// MOTION BLUR VERSION /////////////////////
 /////////////////////////////////////////////////////////////
 #include <IGL/BOX.h>
 #include <IGL/PLANE.h>
@@ -16,8 +16,8 @@
 #include <iostream>
 #include <cstdlib>
 
-#include "helpers\gbuffer.h"
-#include "helpers\gbuffer.cpp"
+#include "helpers\framebuffer.h"
+#include "helpers\framebuffer.cpp"
 #include "helpers\shaderProgram.h"
 #include "helpers\shaderProgram.cpp"
 
@@ -79,48 +79,57 @@ void initFBO();
 void resizeFBO(unsigned int w, unsigned int h);
 void destroy();
 
-// Load the specified shader & return shader ID
-// TO BE IMPLEMENTED
-GLuint loadShader(const char *fileName, GLenum type);
-
 // Texture creation, configuration and upload to OpenGL
 // Return texture ID
-// TO BE IMPLEMENTED
 unsigned int loadTex(const char *fileName);
 
 //////////////////////////////////////////////////////////////
 // New auxiliar variables
 //////////////////////////////////////////////////////////////
-GBuffer gBuffer;
-ShaderProgram dsGeomShader;
-ShaderProgram dsLightShader;
+FrameBuffer fbo;
+ShaderProgram forwardShader;
+ShaderProgram postProcessShader;
+float motionBlurIntensity = 0.5f;
+
+// camera variables
+glm::vec3 COP = glm::vec3(0.0f, 0.0f, 25.0f); // COP is the camera position
+glm::vec3 lookAt = glm::vec3(0.0f, 0.0f, -1.0f); // camera orientation
+glm::vec3 vUp = glm::vec3(0.0f, 1.0f, 0.0f); // camera's up vector
+const float cameraMovementSpeed = 0.5f;
+const float cameraRotationSpeed = glm::radians(5.0f);
+float previousTime = 0.0f;
 //////////////////////////////////////////////////////////////
 // New auxiliar functions
 //////////////////////////////////////////////////////////////
-// TO BE IMPLEMENTED
+void setViewMatGivenLookAtAndUp();
+
+//////////////////////////////////////////////////////////////
 
 int main(int argc, char **argv)
 {
 	std::locale::global(std::locale("spanish")); // acentos ;)
 
+	std::cout << "Press 'wasd' (minus) to move camera. Press 'q' or 'e' to rotate it." << std::endl;
+	std::cout << "Press '+' or '-' to edit Motion Blur intensity." << std::endl;
+
 	initContext(argc, argv);
 	initOGL();
-
-	// Geometry shader program
-	char const* dsGeomAttribs[] = { "inPos", "inColor", "inNormal", "inTexCoord", nullptr};
-	std::string dsGeomVShaderPath = std::string(SHADERS_PATH) + "/deferred.Geometry.vert";
-	std::string dsGeomFShaderPath = std::string(SHADERS_PATH) + "/deferred.Geometry.frag";
-	dsGeomShader.Init(dsGeomVShaderPath.c_str(), dsGeomFShaderPath.c_str(), dsGeomAttribs);
-	// Lighting shader program
-	char const* dsLightAttribs[] = { "inPos", nullptr};
-	std::string dsLightVShaderPath = std::string(SHADERS_PATH) + "/deferred.Lighting.vert";
-	std::string dsLightFShaderPath = std::string(SHADERS_PATH) + "/deferred.Lighting.frag";
-	dsLightShader.Init(dsLightVShaderPath.c_str(), dsLightFShaderPath.c_str(), dsLightAttribs);
 	
+	// Forward shader program
+	char const* forwardAttribs[] = { "inPos", "inColor", "inNormal", "inTexCoord", nullptr};
+	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.v0.vert";
+	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.v0.frag";
+	forwardShader.Init(forwardVShaderPath.c_str(), forwardFShaderPath.c_str(), forwardAttribs);
+	// Post-process shader program
+	char const* postProcessAttribs[] = { "inPos", nullptr};
+	std::string postProcessVShaderPath = std::string(SHADERS_PATH) + "/postProcessing.v0.vert";
+	std::string postProcessFShaderPath = std::string(SHADERS_PATH) + "/postProcessing.v0.frag";
+	postProcessShader.Init(postProcessVShaderPath.c_str(), postProcessFShaderPath.c_str(), postProcessAttribs);
+
 	initObj();
 	initPlane();
-	gBuffer.Init();
-	gBuffer.Resize(SCREEN_SIZE);
+	fbo.Init();
+	fbo.Resize(SCREEN_SIZE, false, false);
 
 	glutMainLoop();
 
@@ -165,7 +174,6 @@ void initContext(int argc, char **argv)
 void initOGL()
 {
 	glEnable(GL_DEPTH_TEST);
-	glClearColor(0.2f, 0.2f, 0.2f, 0.0f);
 
 	glFrontFace(GL_CCW);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -173,13 +181,13 @@ void initOGL()
 
 	proj = glm::perspective(glm::radians(60.0f), 1.0f, 1.0f, 50.0f);
 	view = glm::mat4(1.0f);
-	view[3].z = -25.0f;
+	setViewMatGivenLookAtAndUp();
 }
 
 void destroy()
 {
-	dsGeomShader.Destroy();
-	dsLightShader.Destroy();
+	forwardShader.Destroy();
+	postProcessShader.Destroy();
 
 	glDeleteBuffers(1, &posVBO);
 	glDeleteBuffers(1, &colorVBO);
@@ -196,7 +204,7 @@ void destroy()
 	glDeleteTextures(1, &specularTexId);
 	glDeleteTextures(1, &emiTexId);
 
-	gBuffer.Destroy();
+	fbo.Destroy();
 }
 
 void initObj()
@@ -208,29 +216,29 @@ void initObj()
 	glBindBuffer(GL_ARRAY_BUFFER, posVBO);
 	glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
 					cubeVertexPos, GL_STATIC_DRAW);
-	glVertexAttribPointer(dsGeomShader.GetAttribLocation("inPos"), 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(dsGeomShader.GetAttribLocation("inPos"));
+	glVertexAttribPointer(forwardShader.GetAttribLocation("inPos"), 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(forwardShader.GetAttribLocation("inPos"));
 
 	glGenBuffers(1, &colorVBO);
 	glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
 	glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
 					cubeVertexColor, GL_STATIC_DRAW);
-	glVertexAttribPointer(dsGeomShader.GetAttribLocation("inColor"), 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(dsGeomShader.GetAttribLocation("inColor"));
+	glVertexAttribPointer(forwardShader.GetAttribLocation("inColor"), 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(forwardShader.GetAttribLocation("inColor"));
 
 	glGenBuffers(1, &normalVBO);
 	glBindBuffer(GL_ARRAY_BUFFER, normalVBO);
 	glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 3,
 					cubeVertexNormal, GL_STATIC_DRAW);
-	glVertexAttribPointer(dsGeomShader.GetAttribLocation("inNormal"), 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(dsGeomShader.GetAttribLocation("inNormal"));
+	glVertexAttribPointer(forwardShader.GetAttribLocation("inNormal"), 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(forwardShader.GetAttribLocation("inNormal"));
 
 	glGenBuffers(1, &texCoordVBO);
 	glBindBuffer(GL_ARRAY_BUFFER, texCoordVBO);
 	glBufferData(GL_ARRAY_BUFFER, cubeNVertex * sizeof(float) * 2,
 					cubeVertexTexCoord, GL_STATIC_DRAW);
-	glVertexAttribPointer(dsGeomShader.GetAttribLocation("inTexCoord"), 2, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(dsGeomShader.GetAttribLocation("inTexCoord"));
+	glVertexAttribPointer(forwardShader.GetAttribLocation("inTexCoord"), 2, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(forwardShader.GetAttribLocation("inTexCoord"));
 
 	glGenBuffers(1, &triangleIndexVBO);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, triangleIndexVBO);
@@ -257,8 +265,8 @@ void initPlane()
 	glBindBuffer(GL_ARRAY_BUFFER, planeVertexVBO);
 	glBufferData(GL_ARRAY_BUFFER, planeNVertex * sizeof(float) * 3,
 		planeVertexPos, GL_STATIC_DRAW);
-	glVertexAttribPointer(dsLightShader.GetAttribLocation("inPos"), 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(dsLightShader.GetAttribLocation("inPos"));
+	glVertexAttribPointer(postProcessShader.GetAttribLocation("inPos"), 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(postProcessShader.GetAttribLocation("inPos"));
 }
 
 unsigned int loadTex(const char *fileName)
@@ -292,31 +300,30 @@ unsigned int loadTex(const char *fileName)
 
 void renderFunc()
 {
-	// ---------- GEOMETRY PASS ----------
-	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer.gFbo);
-	glClearColor(0.2f, 0.2f, 0.2f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo.idFbo);
 
-    dsGeomShader.Use();
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // Textures
+	forwardShader.Use();
+
+	// Textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, colorTexId);
-	glUniform1i(dsGeomShader.GetUniformLocation("colorTex"), 0);
+	glUniform1i(forwardShader.GetUniformLocation("colorTex"), 0);
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, specularTexId);
-	glUniform1i(dsGeomShader.GetUniformLocation("specularTex"), 1);
+	glUniform1i(forwardShader.GetUniformLocation("specularTex"), 1);
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, emiTexId);
-	glUniform1i(dsGeomShader.GetUniformLocation("emiTex"), 2);
+	glUniform1i(forwardShader.GetUniformLocation("emiTex"), 2);
 
 	// render cubes
 	model = glm::mat4(2.0f);
 	model[3].w = 1.0f;
 	model = glm::rotate(model, angle, glm::vec3(1.0f, 1.0f, 0.0f));
 	renderCube();
-	
+
 	std::srand(RAND_SEED);
 	for (unsigned int i = 0; i < 10; i++)
 	{
@@ -339,43 +346,38 @@ void renderFunc()
 		model = glm::scale(model, glm::vec3(1.0f / (size * 0.7f)));
 		renderCube();
 	}
+
+	// ---------- POST PROCESSING ----------
+	glEnable(GL_BLEND);
 	
-	// ---------- LIGHTING PASS ----------
+	// change last frame intensity based on motionBlurIntensity
+
+	glBlendFunc(GL_ONE_MINUS_CONSTANT_ALPHA, GL_CONSTANT_ALPHA); 
+	glBlendColor(0.0f, 0.0f, 0.0f, motionBlurIntensity);
+	glBlendEquation(GL_FUNC_ADD);
+
+	// llamar al default framebuffer para pintar el postproceso
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	
-	dsLightShader.Use();
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, gBuffer.gPosition);
-	glUniform1i(glGetUniformLocation(dsLightShader.program, "gPosition"), 0);
+	glBindTexture(GL_TEXTURE_2D, fbo.idColorBuffer);
+	glUniform1i(postProcessShader.GetUniformLocation("colorTex"), 0);
 
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, gBuffer.gNormal);
-	glUniform1i(glGetUniformLocation(dsLightShader.program, "gNormal"), 1);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, gBuffer.gAlbedoSpec);
-	glUniform1i(glGetUniformLocation(dsLightShader.program, "gAlbedoSpec"), 2);
 
-	glActiveTexture(GL_TEXTURE3);
-	glBindTexture(GL_TEXTURE_2D, gBuffer.gEmissive);
-	glUniform1i(glGetUniformLocation(dsLightShader.program, "gEmissive"), 3);
 
+	// pintar quad
+	postProcessShader.Use();
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);
-
-	// send light uniforms
-	// ....
-
-	// render plane
 	glBindVertexArray(planeVAO);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); 
-
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
-	
+
+	glDisable(GL_BLEND);
+
+
 	glutSwapBuffers();
-	
 }
 
 void renderCube()
@@ -384,9 +386,9 @@ void renderCube()
 	glm::mat4 modelViewProj = proj * view * model;
 	glm::mat4 normal = glm::transpose(glm::inverse(modelView));
 
-	glUniformMatrix4fv(dsGeomShader.GetUniformLocation("modelView"), 1, GL_FALSE, &(modelView[0][0]));
-	glUniformMatrix4fv(dsGeomShader.GetUniformLocation("modelViewProj"), 1, GL_FALSE, &(modelViewProj[0][0]));
-	glUniformMatrix4fv(dsGeomShader.GetUniformLocation("normal"), 1, GL_FALSE, &(normal[0][0]));
+	glUniformMatrix4fv(forwardShader.GetUniformLocation("modelView"), 1, GL_FALSE, &(modelView[0][0]));
+	glUniformMatrix4fv(forwardShader.GetUniformLocation("modelViewProj"), 1, GL_FALSE, &(modelViewProj[0][0]));
+	glUniformMatrix4fv(forwardShader.GetUniformLocation("normal"), 1, GL_FALSE, &(normal[0][0]));
 
 	glBindVertexArray(vao);
 	glDrawElements(GL_TRIANGLES, cubeNTriangleIndex * 3, GL_UNSIGNED_INT, (void *)0);
@@ -397,16 +399,66 @@ void resizeFunc(int width, int height)
 	glViewport(0, 0, width, height);
 	proj = glm::perspective(glm::radians(60.0f), float(width) / float(height), 1.0f, 50.0f);
 
-	gBuffer.Resize(width, height);
+	fbo.Resize(width, height, false, false);
 	glutPostRedisplay();
 }
 
 void idleFunc()
 {
-	angle = (angle > PI * 2.0f) ? 0 : angle + 0.0002f;
+	// frame rate control
+    float currentTime = (float)glutGet(GLUT_ELAPSED_TIME) / 1000.0f;  // Get elapsed time in seconds
+    float deltaTime = currentTime - previousTime;
+    if (deltaTime > 0.0f) {
+		angle += 1.5f * deltaTime;
+		if (angle > PI * 2.0f) {
+			angle -= PI * 2.0f;
+		}
+
+		previousTime = currentTime;
+	}
 
 	glutPostRedisplay();
 }
 
-void keyboardFunc(unsigned char key, int x, int y) {}
+void keyboardFunc(unsigned char key, int x, int y) {
+	// camera movement
+	if (key == 'w')
+		COP += lookAt * cameraMovementSpeed;
+	else if (key == 's')
+		COP -= lookAt * cameraMovementSpeed;
+
+	if (key == 'd')
+		COP += glm::normalize(glm::cross(lookAt, vUp)) * cameraMovementSpeed;
+	else if (key == 'a')
+		COP -= glm::normalize(glm::cross(lookAt, vUp)) * cameraMovementSpeed;
+
+	if (key == 'e')
+		lookAt = glm::vec3(glm::rotate(glm::mat4(1.0f), -cameraRotationSpeed, glm::vec3(0.0f, 1.0f, 0.0f)) * glm::vec4(lookAt, 0.0f));
+	else if (key == 'q')
+		lookAt = glm::vec3(glm::rotate(glm::mat4(1.0f), cameraRotationSpeed, glm::vec3(0.0f, 1.0f, 0.0f)) * glm::vec4(lookAt, 0.0f));
+
+	setViewMatGivenLookAtAndUp();
+
+	// motion blur intensity control
+	if (key == '+') {
+		motionBlurIntensity += 0.1f;
+		if (motionBlurIntensity > 0.9f) motionBlurIntensity = 0.9f;
+		std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
+	}
+	if (key == '-') {
+		motionBlurIntensity -= 0.1f;
+		if (motionBlurIntensity < 0.1f) motionBlurIntensity = 0.1f;
+		std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
+	}
+}
+
 void mouseFunc(int button, int state, int x, int y) {}
+
+void setViewMatGivenLookAtAndUp(){
+	glm::vec3 n = -glm::normalize(lookAt);
+	glm::vec3 v = glm::normalize(vUp - (n * vUp) * n);
+	glm::vec3 u = glm::cross(v, n);
+
+	glm::mat4 cameraView = glm::mat4(glm::vec4(u, 0), glm::vec4(v, 0), glm::vec4(n, 0), glm::vec4(COP, 1));
+	view = glm::inverse(cameraView);
+}

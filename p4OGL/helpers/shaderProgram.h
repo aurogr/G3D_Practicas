@@ -11,6 +11,8 @@ class ShaderProgram
 		void Init(const char *vname, const char *fname, const char* attribs[]);
 		void Use();
 		void Destroy();  
+        GLuint GetUniformLocation(char const* uniformName); 
+        GLuint GetAttribLocation(char const* attribName); 
 	
 	private:		
 		unsigned int vShader;		
