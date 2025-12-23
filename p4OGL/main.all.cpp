@@ -93,7 +93,6 @@ ShaderProgram postProcessShader;
 char selectedKey = '1'; // '1' for focal distance, '2' for max distance factor
 float focalDistance = -25.0f; // focal distance
 float maxDistanceFactor = 1.0/5.0; // maximum blur distance factor
-float motionBlurIntensity = 0.6f;
 
 // camera variables
 glm::vec3 COP = glm::vec3(0.0f, 0.0f, 25.0f); // COP is the camera position
@@ -404,7 +403,7 @@ void renderFunc()
 	glBindVertexArray(planeVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-	glDisable(GL_BLEND);
+	glDisable(GL_BlEND);
 	
 	// 3. Depth of Field
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -519,18 +518,6 @@ void keyboardFunc(unsigned char key, int x, int y) {
 				maxDistanceFactor = 0.01f;
 			std::cout << "Max Distance Factor: " << maxDistanceFactor << std::endl;
 		}
-	}
-
-	// motion blur intensity control
-	if (key == '+') {
-		motionBlurIntensity += 0.1f;
-		if (motionBlurIntensity > 0.9f) motionBlurIntensity = 0.9f;
-		std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
-	}
-	if (key == '-') {
-		motionBlurIntensity -= 0.1f;
-		if (motionBlurIntensity < 0.1f) motionBlurIntensity = 0.1f;
-		std::cout << "Motion Blur Intensity: " << motionBlurIntensity << std::endl;
 	}
 	
 }
