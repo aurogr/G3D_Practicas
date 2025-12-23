@@ -26,6 +26,7 @@ vec3 Is = vec3(0.7);
 vec3 Lpos = vec3(0.0);
 
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outVertex;
 
 // Phong shading
 vec3 shade();
@@ -39,6 +40,7 @@ void main() {
 	Ke = texture(emiTex, vTexCoord).rgb;
 
 	outColor = vec4(shade(), 1.0);
+	outVertex = vec4(vPos,1.0); 
 }
 
 vec3 shade() {
