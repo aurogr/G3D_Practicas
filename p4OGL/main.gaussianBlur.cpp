@@ -15,6 +15,7 @@
 
 #include <iostream>
 #include <cstdlib>
+#include <vector>
 
 #include "helpers\framebuffer.h"
 #include "helpers\framebuffer.cpp"
@@ -387,7 +388,6 @@ void renderFunc()
 	glUniform1fv(postProcessShader.GetUniformLocation("convMask"), cMasks[mask].mask.size(), cMasks[mask].mask.data());
 	glUniform2fv(postProcessShader.GetUniformLocation("convTexId"), cMasks[mask].texIdx.size(), (GLfloat *)cMasks[mask].texIdx.data());
 
-	
 	glBindVertexArray(planeVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
@@ -397,10 +397,11 @@ void renderFunc()
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, fboVertical.idColorBuffer);
 	glUniform1i(postProcessShader.GetUniformLocation("colorTex"), 0);
-
 	glUniform1i(postProcessShader.GetUniformLocation("horizontal"), GL_FALSE);
+	glUniform1i(postProcessShader.GetUniformLocation("convMaskSize"), cMasks[mask].size);
+	glUniform1fv(postProcessShader.GetUniformLocation("convMask"), cMasks[mask].mask.size(), cMasks[mask].mask.data());
+	glUniform2fv(postProcessShader.GetUniformLocation("convTexId"), cMasks[mask].texIdx.size(), (GLfloat *)cMasks[mask].texIdx.data());
 
-	
 	glBindVertexArray(planeVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	glEnable(GL_CULL_FACE);

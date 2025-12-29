@@ -139,8 +139,8 @@ int main(int argc, char **argv)
 	
 	// Forward shader program
 	char const* forwardAttribs[] = { "inPos", "inColor", "inNormal", "inTexCoord", nullptr};
-	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.dof.vert";
-	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.dof.frag";
+	std::string forwardVShaderPath = std::string(SHADERS_PATH) + "/fwRendering.vert";
+	std::string forwardFShaderPath = std::string(SHADERS_PATH) + "/fwRendering.frag";
 	forwardShader.Init(forwardVShaderPath.c_str(), forwardFShaderPath.c_str(), forwardAttribs);
 	// Post-process shader program
 	char const* postProcessAttribs[] = { "inPos", nullptr};
@@ -225,7 +225,9 @@ void initOGL()
 void destroy()
 {
 	forwardShader.Destroy();
-	postProcessShader.Destroy();
+	ppShaderDOF.Destroy();
+	ppShaderGB.Destroy();
+	ppShaderMB.Destroy();
 
 	glDeleteBuffers(1, &posVBO);
 	glDeleteBuffers(1, &colorVBO);
@@ -297,7 +299,7 @@ void initObj()
 	emiTexId = loadTex(emissiveTexPath.c_str());
 }
 
-void initPlane(ShaderProgram& postProcessShader) 
+void initPlane() 
 {
 	glGenVertexArrays(1, &planeVAO);
 	glBindVertexArray(planeVAO);
@@ -306,8 +308,8 @@ void initPlane(ShaderProgram& postProcessShader)
 	glBindBuffer(GL_ARRAY_BUFFER, planeVertexVBO);
 	glBufferData(GL_ARRAY_BUFFER, planeNVertex * sizeof(float) * 3,
 		planeVertexPos, GL_STATIC_DRAW);
-	glVertexAttribPointer(postProcessShader.GetAttribLocation("inPos"), 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(postProcessShader.GetAttribLocation("inPos"));
+	glVertexAttribPointer(ppShaderGB.GetAttribLocation("inPos"), 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(ppShaderGB.GetAttribLocation("inPos"));
 }
 
 unsigned int loadTex(const char *fileName)
@@ -351,7 +353,6 @@ void renderFunc()
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, colorTexId);
 	glUniform1i(forwardShader.GetUniformLocation("colorTex"), 0);
-
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, specularTexId);
 	glUniform1i(forwardShader.GetUniformLocation("specularTex"), 1);
@@ -402,8 +403,11 @@ void renderFunc()
 	glBindTexture(GL_TEXTURE_2D, fboMainRender.idColorBuffer);
 	glUniform1i(ppShaderGB.GetUniformLocation("colorTex"), 0);
 	glUniform1i(ppShaderGB.GetUniformLocation("horizontal"), GL_TRUE);
+		// Convolution Mask assignment
+	glUniform1i(ppShaderGB.GetUniformLocation("convMaskSize"), cMasks[mask].size);
+	glUniform1fv(ppShaderGB.GetUniformLocation("convMask"), cMasks[mask].mask.size(), cMasks[mask].mask.data());
+	glUniform2fv(ppShaderGB.GetUniformLocation("convTexId"), cMasks[mask].texIdx.size(), (GLfloat *)cMasks[mask].texIdx.data());
 
-	
 	glBindVertexArray(planeVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
@@ -415,11 +419,15 @@ void renderFunc()
 	glUniform1i(ppShaderGB.GetUniformLocation("colorTex"), 0);
 	glUniform1i(ppShaderGB.GetUniformLocation("horizontal"), GL_FALSE);
 
-	
+		// Convolution Mask assignment
+	glUniform1i(ppShaderGB.GetUniformLocation("convMaskSize"), cMasks[mask].size);
+	glUniform1fv(ppShaderGB.GetUniformLocation("convMask"), cMasks[mask].mask.size(), cMasks[mask].mask.data());
+	glUniform2fv(ppShaderGB.GetUniformLocation("convTexId"), cMasks[mask].texIdx.size(), (GLfloat *)cMasks[mask].texIdx.data());
+
+
 	glBindVertexArray(planeVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-	glEnable(GL_CULL_FACE);
-	glEnable(GL_DEPTH_TEST);
+	
 
 	// 3. Depth of Field
 	glBindFramebuffer(GL_FRAMEBUFFER, fboDOF.idFbo);
@@ -463,7 +471,7 @@ void renderFunc()
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 	glDisable(GL_BLEND);
-	
+
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
 
